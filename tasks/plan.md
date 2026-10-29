@@ -60,7 +60,7 @@ T1 repo + infra dev
 ### Phase 2: Lưu trữ & index
 - [x] T5: Model-server (embed + rerank)
 - [x] T6: DB schema + ghi văn bản/provision/chunk vào Postgres
-- [ ] T7: BM25 tokenizer + encoder
+- [x] T7: BM25 tokenizer + encoder
 - [ ] T8: Qdrant indexer + `lawqa ingest` / `reindex` / `documents`
 
 **Checkpoint 2** — file 2013 nằm trong Postgres + Qdrant, số lượng khớp, nạp lại không trùng.

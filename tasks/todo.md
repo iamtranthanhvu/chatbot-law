@@ -124,7 +124,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T7: BM25 tokenizer + encoder
+### - [x] T7: BM25 tokenizer + encoder
 
 **Description:** Tokenizer: NFC, lowercase, âm tiết + bigram âm tiết, giữ định danh pháp lý (`45/2013/qh13`, `điều 100`, `khoản 2`) thành một token. Encoder: TF bão hòa BM25 (`k1`, `b`, `avgdl` lưu theo collection) → sparse vector `{indices: mmh3, values}`.
 
