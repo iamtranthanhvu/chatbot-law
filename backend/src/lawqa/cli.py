@@ -10,6 +10,9 @@ from qdrant_client import AsyncQdrantClient
 
 from lawqa.core.config import IngestionSettings, get_settings
 from lawqa.db.session import create_engine, create_session_factory
+from lawqa.eval.dataset import load_dataset
+from lawqa.eval.report import write_report
+from lawqa.eval.runner import run_retrieval_eval
 from lawqa.generation.llm_client import LLMClient
 from lawqa.ingestion.chunker import chunk_document
 from lawqa.ingestion.indexer import QdrantIndexer
@@ -28,6 +31,10 @@ from lawqa.retrieval.hybrid import HybridRetriever, RetrievalMode, RetrievalSett
 app = typer.Typer(help="Law QA — công cụ vận hành (nạp văn bản, tìm kiếm, hỏi đáp, đánh giá).")
 documents_app = typer.Typer(help="Xem và quản lý văn bản đã nạp.")
 app.add_typer(documents_app, name="documents")
+eval_app = typer.Typer(help="Đánh giá chất lượng trên bộ câu hỏi chuẩn.")
+app.add_typer(eval_app, name="eval")
+
+_REPO = Path(__file__).resolve().parents[3]
 
 _OPERATOR_ERRORS = (
     IntegrityError,
@@ -277,5 +284,55 @@ def ask(
                     if event.invalid_citations:
                         typer.echo(f"Trích dẫn không hợp lệ đã loại: {event.invalid_citations}")
                     typer.echo(f"Model: {event.model} · độ trễ (ms): {event.latency_ms}")
+
+    _run(run())
+
+
+@eval_app.command("retrieval")
+def eval_retrieval(
+    dataset: Annotated[
+        Path, typer.Option("--set", exists=True, dir_okay=False, help="Tệp .jsonl")
+    ] = _REPO / "eval" / "datasets" / "seed.jsonl",
+    modes: Annotated[str, typer.Option(help="Các chế độ, cách nhau bởi dấu phẩy")] = (
+        "dense,bm25,hybrid"
+    ),
+    on: Annotated[str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD")] = None,
+    out: Annotated[Path, typer.Option(help="Thư mục kết quả")] = _REPO / "eval" / "results",
+    min_recall: Annotated[
+        float, typer.Option(help="Thoát lỗi nếu Recall@10 của chế độ cuối thấp hơn mức này")
+    ] = 0.0,
+) -> None:
+    """Đo Recall@5/10, MRR@10, nDCG@10 cho từng chế độ tìm kiếm (ablation)."""
+    mode_list = [mode.strip() for mode in modes.split(",") if mode.strip()]
+    if not set(mode_list) <= {"dense", "bm25", "hybrid"}:
+        raise typer.BadParameter("modes chỉ gồm dense, bm25, hybrid")
+    reference_date = date.fromisoformat(on) if on else date.today()
+    settings = get_settings()
+
+    async def run() -> None:
+        async with _retriever() as retriever:
+            report = await run_retrieval_eval(
+                load_dataset(dataset),
+                retriever,
+                mode_list,
+                reference_date,
+                config={
+                    "retrieval": RetrievalSettings(
+                        collection=settings.qdrant_collection
+                    ).model_dump(),
+                    "chunk_max_tokens": settings.chunk_max_tokens,
+                    "tokenizer": settings.tokenizer_name,
+                },
+                dataset=dataset.name,
+            )
+        json_path, md_path = write_report(report, out)
+        for mode in report.modes:
+            values = " · ".join(f"{k} {v:.3f}" for k, v in mode.overall.items())
+            typer.echo(f"{mode.mode:<7} {values}")
+        typer.echo(f"Báo cáo: {md_path}\nDữ liệu: {json_path}")
+        last = report.modes[-1].overall.get("recall@10", 0.0)
+        if last < min_recall:
+            typer.echo(f"Recall@10 {last:.3f} < ngưỡng {min_recall}", err=True)
+            raise typer.Exit(code=1)
 
     _run(run())

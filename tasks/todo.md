@@ -227,7 +227,15 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 4: Eval
 
-### - [ ] T12: Dataset + metric retrieval + ablation
+### - [x] T12: Dataset + metric retrieval + ablation
+
+> **Baseline (seed.jsonl, 29 câu có đáp án, Luật 45/2013, commit 3162cce):**
+> | chế độ | R@5 | R@10 | MRR@10 | nDCG@10 |
+> |---|---|---|---|---|
+> | dense | 0.816 | 0.885 | 0.747 | 0.760 |
+> | bm25 | 0.690 | 0.845 | 0.592 | 0.635 |
+> | hybrid | 0.822 | 0.833 | 0.740 | 0.752 |
+> Hybrid chưa vượt dense: lookup ("Điều 100…") = 0 ở dense/hybrid (→ T15); BM25 yếu với câu người dân (R@10 0.70) kéo hybrid xuống ở nhóm layperson (→ T14, T16, T17). Ngưỡng hồi quy tạm: `make eval ARGS="--min-recall 0.80"`.
 
 **Description:** Định dạng `golden.jsonl` theo SPEC 3.8 + script convert từ golden set của bạn (khi có). Trước mắt: `seed.jsonl` ~30 câu (chia đều persona/intent) tôi soạn từ Luật 2013, **người duyệt**. Runner: Recall@5/10, MRR@10, nDCG@10 theo `dieu[/khoan]`, chạy các chế độ ablation, xuất JSON + Markdown có git SHA + config hash. Cũng dùng làm retrieval regression test.
 

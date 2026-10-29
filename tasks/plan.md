@@ -73,7 +73,7 @@ T1 repo + infra dev
 **Checkpoint 3** — `lawqa ask` trả lời có trích dẫn end-to-end trên Mac.
 
 ### Phase 4: Eval
-- [ ] T12: Dataset + metric retrieval + ablation
+- [x] T12: Dataset + metric retrieval + ablation
 - [ ] T13: Metric generation (LLM judge) + `eval-compare`
 
 ### Phase 5: Chất lượng
