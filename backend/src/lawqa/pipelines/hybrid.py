@@ -128,6 +128,7 @@ def _source(source: ContextSource) -> Source:
         title=source.article_title,
         snippet=source.chunks[0].text[:200],
         score=source.score,
+        context=source.text,
     )
 
 

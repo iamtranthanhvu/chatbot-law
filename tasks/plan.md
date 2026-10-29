@@ -74,7 +74,7 @@ T1 repo + infra dev
 
 ### Phase 4: Eval
 - [x] T12: Dataset + metric retrieval + ablation
-- [ ] T13: Metric generation (LLM judge) + `eval-compare`
+- [x] T13: Metric generation (LLM judge) + `eval-compare`
 
 ### Phase 5: Chất lượng
 - [ ] T14: Rerank + từ chối khi không đủ căn cứ

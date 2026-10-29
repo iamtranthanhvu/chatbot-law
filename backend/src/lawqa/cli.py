@@ -1,7 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator, Coroutine
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -10,7 +10,10 @@ from qdrant_client import AsyncQdrantClient
 
 from lawqa.core.config import IngestionSettings, get_settings
 from lawqa.db.session import create_engine, create_session_factory
+from lawqa.eval.compare import compare_reports
 from lawqa.eval.dataset import load_dataset
+from lawqa.eval.generation_runner import run_generation_eval
+from lawqa.eval.judge import Judge, JudgeConfigError, check_judge_config
 from lawqa.eval.report import write_report
 from lawqa.eval.runner import run_retrieval_eval
 from lawqa.generation.llm_client import LLMClient
@@ -37,6 +40,7 @@ app.add_typer(eval_app, name="eval")
 _REPO = Path(__file__).resolve().parents[3]
 
 _OPERATOR_ERRORS = (
+    JudgeConfigError,
     IntegrityError,
     MetadataError,
     DocumentExistsError,
@@ -336,3 +340,78 @@ def eval_retrieval(
             raise typer.Exit(code=1)
 
     _run(run())
+
+
+@eval_app.command("generation")
+def eval_generation(
+    dataset: Annotated[
+        Path, typer.Option("--set", exists=True, dir_okay=False, help="Tệp .jsonl")
+    ] = _REPO / "eval" / "datasets" / "seed.jsonl",
+    on: Annotated[str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD")] = None,
+    out: Annotated[Path, typer.Option(help="Thư mục kết quả")] = _REPO / "eval" / "results",
+    allow_self_judge: Annotated[
+        bool, typer.Option("--allow-self-judge", help="Cho phép judge trùng model được chấm")
+    ] = False,
+) -> None:
+    """Sinh câu trả lời cho cả bộ câu hỏi rồi chấm bằng LLM judge + metric tính bằng code."""
+    settings = get_settings()
+    if not settings.judge_model or not settings.judge_base_url:
+        typer.echo("Thiếu JUDGE_BASE_URL / JUDGE_MODEL trong .env", err=True)
+        raise typer.Exit(code=1)
+    reference_date = date.fromisoformat(on) if on else date.today()
+
+    async def run() -> None:
+        assert settings.judge_model and settings.judge_base_url
+        check_judge_config(
+            generator={"base_url": settings.llm_base_url, "model": settings.llm_model},
+            judge={"base_url": settings.judge_base_url, "model": settings.judge_model},
+            allow_self_judge=allow_self_judge,
+        )
+        judge_llm = LLMClient(
+            settings.judge_base_url,
+            settings.judge_model,
+            settings.judge_api_key,
+            api_style=settings.judge_api_style,
+            num_ctx=settings.llm_num_ctx,
+        )
+        try:
+            async with _pipeline() as pipeline:
+                report = await run_generation_eval(
+                    load_dataset(dataset),
+                    pipeline,
+                    Judge(judge_llm),
+                    reference_date,
+                    config={
+                        "llm_model": settings.llm_model,
+                        "judge_model": settings.judge_model,
+                        "context_max_tokens": settings.context_max_tokens,
+                        "max_context_chunks": settings.max_context_chunks,
+                        "max_answer_tokens": settings.max_answer_tokens,
+                        "retrieval": RetrievalSettings(
+                            collection=settings.qdrant_collection
+                        ).model_dump(),
+                    },
+                    dataset=dataset.name,
+                )
+        finally:
+            await judge_llm.aclose()
+        json_path, md_path = write_report(report, out)
+        for key, value in report.overall.items():
+            typer.echo(f"{key:<24} {value:.3f}")
+        typer.echo(f"Báo cáo: {md_path}\nDữ liệu: {json_path}")
+
+    _run(run())
+
+
+@eval_app.command("compare")
+def eval_compare(
+    reports: Annotated[list[Path], typer.Argument(help="Các tệp kết quả .json")],
+    out: Annotated[Path, typer.Option(help="Thư mục kết quả")] = _REPO / "eval" / "results",
+) -> None:
+    """So sánh nhiều lần đánh giá, đặt các chỉ số cạnh nhau."""
+    markdown = compare_reports([path for path in reports if path.suffix == ".json"])
+    out.mkdir(parents=True, exist_ok=True)
+    target = out / f"compare-{datetime.now(UTC):%Y%m%d-%H%M%S}.md"
+    target.write_text(markdown, encoding="utf-8")
+    typer.echo(markdown)
+    typer.echo(f"Đã lưu: {target}")

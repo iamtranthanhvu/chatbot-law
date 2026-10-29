@@ -36,6 +36,11 @@ class Settings(IngestionSettings, DatabaseSettings):
     llm_api_style: Literal["openai", "ollama"] = "openai"
     llm_num_ctx: int = Field(default=8192, gt=0)
 
+    judge_base_url: str | None = None
+    judge_model: str | None = None
+    judge_api_key: str = "not-needed"
+    judge_api_style: Literal["openai", "ollama"] = "openai"
+
     context_max_tokens: int = Field(default=6000, gt=0)
     max_answer_tokens: int = Field(default=1024, gt=0)
     max_context_chunks: int = Field(default=8, gt=0)

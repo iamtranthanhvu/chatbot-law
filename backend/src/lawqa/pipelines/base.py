@@ -25,6 +25,8 @@ class Source(BaseModel):
     title: str
     snippet: str
     score: float
+    # Full source text given to the LLM; used by evaluation, never sent to end users.
+    context: str = Field(default="", exclude=True)
 
 
 class MetaEvent(BaseModel):

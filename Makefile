@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE_DEV := docker compose -f compose.dev.yml
 BACKEND := cd backend && uv run
 
-.PHONY: setup infra-up infra-down models dev-models migrate lint format typecheck test test-all test-models ingest reindex docs eval
+.PHONY: setup infra-up infra-down models dev-models migrate lint format typecheck test test-all test-models ingest reindex docs eval eval-compare
 
 MODEL_SERVER := cd model-server && uv run
 
@@ -65,3 +65,6 @@ SET ?= eval/datasets/seed.jsonl
 MODE ?= retrieval
 eval:
 	$(BACKEND) lawqa eval $(MODE) --set ../$(SET) $(ARGS)
+
+eval-compare:
+	$(BACKEND) lawqa eval compare $(patsubst %,../%,$(wildcard eval/results/*.json))

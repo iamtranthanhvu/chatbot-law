@@ -252,7 +252,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T13: Metric generation + `eval-compare`
+### - [x] T13: Metric generation + `eval-compare`
 
 **Description:** LLM judge qua endpoint cấu hình riêng (`JUDGE_BASE_URL`, `JUDGE_MODEL`), prompt chấm faithfulness, correctness, độ dễ hiểu (layperson); citation precision/recall tính bằng code; refusal đúng/sai; latency từng giai đoạn. `make eval-compare` gộp nhiều file kết quả thành một bảng.
 
