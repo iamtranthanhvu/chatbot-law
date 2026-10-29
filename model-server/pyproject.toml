@@ -25,6 +25,7 @@ dev = [
     "httpx>=0.28",
     "mypy>=1.13",
     "pytest>=8.3",
+    "pytest-asyncio>=0.24",
     "ruff>=0.8",
 ]
 
@@ -51,4 +52,5 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-m 'not models'"
+asyncio_mode = "auto"
 markers = ["models: downloads and runs the real BGE models"]

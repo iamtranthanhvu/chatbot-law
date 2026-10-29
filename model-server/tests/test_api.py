@@ -101,3 +101,53 @@ def test_healthz_reports_device_and_models(client: TestClient) -> None:
 )
 def test_resolve_device(setting: str, cuda: bool, mps: bool, expected: str) -> None:
     assert resolve_device(setting, cuda_available=cuda, mps_available=mps) == expected
+
+
+class _ConcurrencyProbe:
+    """Fake models that record how many inferences run at the same time on the device."""
+
+    active = 0
+    peak = 0
+    guard = __import__("threading").Lock()
+
+    @classmethod
+    def run(cls) -> None:
+        import time
+
+        with cls.guard:
+            cls.active += 1
+            cls.peak = max(cls.peak, cls.active)
+        time.sleep(0.05)
+        with cls.guard:
+            cls.active -= 1
+
+
+class ProbeEmbedder(FakeEmbedder):
+    def embed(self, texts: list[str]) -> list[list[float]]:
+        _ConcurrencyProbe.run()
+        return super().embed(texts)
+
+
+class ProbeReranker(FakeReranker):
+    def score(self, query: str, passages: list[str]) -> list[float]:
+        _ConcurrencyProbe.run()
+        return super().score(query, passages)
+
+
+async def test_embedding_and_reranking_never_run_on_the_device_at_the_same_time() -> None:
+    import asyncio
+
+    import httpx
+
+    _ConcurrencyProbe.peak = 0
+    app = create_app(
+        Settings(device="cpu"), embedder_factory=ProbeEmbedder, reranker_factory=ProbeReranker
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://ms") as client:
+        await asyncio.gather(
+            *[client.post("/embed", json={"texts": ["đất"]}) for _ in range(4)],
+            *[client.post("/rerank", json={"query": "q", "passages": ["q"]}) for _ in range(4)],
+        )
+
+    assert _ConcurrencyProbe.peak == 1

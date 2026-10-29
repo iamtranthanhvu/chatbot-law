@@ -42,14 +42,12 @@ class HealthResponse(BaseModel):
 
 
 class _LazyModel[T]:
-    """Loads a model on first use; inference is serialized because torch models are not
-    safe to call concurrently on one device."""
+    """Loads a model on first use."""
 
     def __init__(self, factory: Callable[[], T]) -> None:
         self._factory = factory
         self._instance: T | None = None
         self._load_lock = threading.Lock()
-        self.inference_lock = asyncio.Lock()
 
     @property
     def loaded(self) -> bool:
@@ -72,6 +70,9 @@ def create_app(
     device = resolve_device(settings.device)
     embedder = _LazyModel(embedder_factory or (lambda: BGEM3Embedder(settings, device)))
     reranker = _LazyModel(reranker_factory or (lambda: BGEReranker(settings, device)))
+    # One lock for the whole device: MPS aborts the process ("A command encoder is already
+    # encoding to this command buffer") when two models submit work from different threads.
+    device_lock = asyncio.Lock()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -95,7 +96,7 @@ def create_app(
     async def embed(request: EmbedRequest) -> EmbedResponse:
         validate_texts(request.texts, "texts")
         model = await asyncio.to_thread(embedder.get)
-        async with embedder.inference_lock:
+        async with device_lock:
             raw = await asyncio.to_thread(model.embed, request.texts)
         matrix = np.asarray(raw, dtype=np.float32)
         norms = np.linalg.norm(matrix, axis=1, keepdims=True)
@@ -109,7 +110,7 @@ def create_app(
         validate_texts([request.query], "query")
         validate_texts(request.passages, "passages")
         model = await asyncio.to_thread(reranker.get)
-        async with reranker.inference_lock:
+        async with device_lock:
             scores = await asyncio.to_thread(model.score, request.query, request.passages)
         return RerankResponse(scores=scores, model=settings.rerank_model)
 
