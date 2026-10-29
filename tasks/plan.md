@@ -68,7 +68,7 @@ T1 repo + infra dev
 ### Phase 3: Walking skeleton (CLI)
 - [x] T9: Hybrid retrieval + `lawqa search`
 - [x] T10: LLM client + kiểm tra trích dẫn
-- [ ] T11: `HybridRAGPipeline` + context packing + `lawqa ask`
+- [x] T11: `HybridRAGPipeline` + context packing + `lawqa ask`
 
 **Checkpoint 3** — `lawqa ask` trả lời có trích dẫn end-to-end trên Mac.
 

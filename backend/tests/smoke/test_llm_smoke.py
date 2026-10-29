@@ -15,6 +15,7 @@ async def test_real_llm_streams_vietnamese_without_thinking() -> None:
         settings.llm_model,
         settings.llm_api_key,
         api_style=settings.llm_api_style,
+        num_ctx=settings.llm_num_ctx,
     )
     messages = [
         {"role": "system", "content": "Trả lời ngắn gọn bằng tiếng Việt."},

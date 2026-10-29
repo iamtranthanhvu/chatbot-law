@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV = SettingsConfigDict(env_file=("../.env", ".env"), env_file_encoding="utf-8", extra="ignore")
@@ -34,9 +34,26 @@ class Settings(IngestionSettings, DatabaseSettings):
     llm_api_key: str = "not-needed"
     llm_model: str
     llm_api_style: Literal["openai", "ollama"] = "openai"
+    llm_num_ctx: int = Field(default=8192, gt=0)
+
+    context_max_tokens: int = Field(default=6000, gt=0)
+    max_answer_tokens: int = Field(default=1024, gt=0)
+    max_context_chunks: int = Field(default=8, gt=0)
 
     log_level: str = "INFO"
     log_json: bool = False
+
+    @model_validator(mode="after")
+    def _context_fits_ollama_window(self) -> Self:
+        # Ollama silently drops the start of a prompt longer than num_ctx — the system rules
+        # go first. 1024 tokens cover the system prompt, question and source headers.
+        needed = self.context_max_tokens + self.max_answer_tokens + 1024
+        if self.llm_api_style == "ollama" and needed > self.llm_num_ctx:
+            raise ValueError(
+                f"LLM_NUM_CTX={self.llm_num_ctx} nhỏ hơn mức cần {needed} "
+                "(CONTEXT_MAX_TOKENS + MAX_ANSWER_TOKENS + 1024)"
+            )
+        return self
 
 
 @lru_cache

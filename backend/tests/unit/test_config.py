@@ -32,3 +32,24 @@ def test_missing_required_variable_names_the_field(monkeypatch: pytest.MonkeyPat
 
     with pytest.raises(ValidationError, match="database_url"):
         Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_ollama_context_window_must_fit_context_and_answer(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key, value in REQUIRED.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("LLM_API_STYLE", "ollama")
+    monkeypatch.setenv("LLM_NUM_CTX", "4096")
+    monkeypatch.setenv("CONTEXT_MAX_TOKENS", "6000")
+
+    with pytest.raises(ValidationError, match="LLM_NUM_CTX"):
+        Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_default_ollama_context_window_fits_the_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
+    for key, value in REQUIRED.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.setenv("LLM_API_STYLE", "ollama")
+
+    settings = Settings(_env_file=None)  # type: ignore[call-arg]
+
+    assert settings.llm_num_ctx >= settings.context_max_tokens + settings.max_answer_tokens

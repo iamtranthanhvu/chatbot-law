@@ -97,9 +97,11 @@ class LLMClient:
         max_retries: int = 2,
         retry_backoff: float = 0.5,
         api_style: ApiStyle = "openai",
+        num_ctx: int | None = None,
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._api_style = api_style
+        self._num_ctx = num_ctx
         base_url = base_url.rstrip("/")
         if api_style == "ollama":
             base_url = base_url.removesuffix("/v1")
@@ -184,6 +186,8 @@ class LLMClient:
             options: dict[str, Any] = {"temperature": temperature}
             if max_tokens is not None:
                 options["num_predict"] = max_tokens
+            if self._num_ctx is not None:
+                options["num_ctx"] = self._num_ctx
             return {
                 "model": self._model,
                 "messages": messages,

@@ -200,7 +200,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** S
 
-### - [ ] T11: `HybridRAGPipeline` + context packing + `lawqa ask`
+### - [x] T11: `HybridRAGPipeline` + context packing + `lawqa ask`
 
 **Description:** `RAGPipeline` Protocol + `PipelineEvent` (meta/sources/token/done/error). `HybridRAGPipeline`: retrieve → `context_packer` (gom theo Điều, sắp theo thứ tự, ≤ `CONTEXT_MAX_TOKENS`) → prompt chung (chỉ dùng nguồn, trích `[n]`, miễn trừ) → stream → kiểm tra trích dẫn. `lawqa ask "<q>"` in stream + nguồn.
 

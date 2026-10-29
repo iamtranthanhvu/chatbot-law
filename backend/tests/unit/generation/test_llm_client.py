@@ -209,3 +209,16 @@ async def test_ollama_style_reports_errors_from_the_stream() -> None:
 
     with pytest.raises(LLMError, match="not found"):
         _ = [piece async for piece in _ollama(handler).stream(MESSAGES)]
+
+
+async def test_ollama_style_sends_context_window_size() -> None:
+    seen: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(json.loads(request.content))
+        return httpx.Response(200, content=_ndjson(["ok"]))
+
+    _ = [piece async for piece in _ollama(handler, num_ctx=8192).stream(MESSAGES)]
+
+    options = seen[0]["options"]
+    assert isinstance(options, dict) and options["num_ctx"] == 8192

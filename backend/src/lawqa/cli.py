@@ -10,6 +10,7 @@ from qdrant_client import AsyncQdrantClient
 
 from lawqa.core.config import IngestionSettings, get_settings
 from lawqa.db.session import create_engine, create_session_factory
+from lawqa.generation.llm_client import LLMClient
 from lawqa.ingestion.chunker import chunk_document
 from lawqa.ingestion.indexer import QdrantIndexer
 from lawqa.ingestion.integrity import IntegrityError
@@ -19,6 +20,8 @@ from lawqa.ingestion.report import format_report
 from lawqa.ingestion.service import IndexingError, IngestService
 from lawqa.ingestion.store import DocumentExistsError, list_documents
 from lawqa.ingestion.tokens import HFTokenCounter
+from lawqa.pipelines.base import DoneEvent, ErrorEvent, Query, SourcesEvent, TokenEvent
+from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
 from lawqa.retrieval.hybrid import HybridRetriever, RetrievalMode, RetrievalSettings
 
@@ -72,6 +75,32 @@ async def _retriever() -> AsyncIterator[HybridRetriever]:
     finally:
         await encoder.aclose()
         await qdrant.close()
+
+
+@asynccontextmanager
+async def _pipeline() -> AsyncIterator[HybridRAGPipeline]:
+    settings = get_settings()
+    llm = LLMClient(
+        settings.llm_base_url,
+        settings.llm_model,
+        settings.llm_api_key,
+        api_style=settings.llm_api_style,
+        num_ctx=settings.llm_num_ctx,
+    )
+    try:
+        async with _retriever() as retriever:
+            yield HybridRAGPipeline(
+                retriever=retriever,
+                llm=llm,
+                counter=HFTokenCounter(settings.tokenizer_name),
+                settings=PipelineSettings(
+                    context_max_tokens=settings.context_max_tokens,
+                    max_answer_tokens=settings.max_answer_tokens,
+                    max_chunks=settings.max_context_chunks,
+                ),
+            )
+    finally:
+        await llm.aclose()
 
 
 def _run(coroutine: Coroutine[Any, Any, None]) -> None:
@@ -208,5 +237,45 @@ def search(
                 f"{rank:>2}. {chunk.score:.4f}  {chunk.path:<18} Điều {chunk.article_number}. "
                 f"{chunk.article_title[:60]}\n      {snippet}"
             )
+
+    _run(run())
+
+
+@app.command()
+def ask(
+    question: str,
+    on: Annotated[
+        str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD (mặc định hôm nay)")
+    ] = None,
+) -> None:
+    """Hỏi đáp end-to-end: tìm kiếm hybrid → LLM → câu trả lời có trích dẫn."""
+    query = Query(text=question, **({"reference_date": date.fromisoformat(on)} if on else {}))
+
+    async def run() -> None:
+        sources: SourcesEvent | None = None
+        async with _pipeline() as pipeline:
+            async for event in pipeline.answer(query):
+                if isinstance(event, SourcesEvent):
+                    sources = event
+                elif isinstance(event, TokenEvent):
+                    typer.echo(event.delta, nl=False)
+                elif isinstance(event, ErrorEvent):
+                    typer.echo(f"\n[{event.code}] {event.message}", err=True)
+                    raise typer.Exit(code=1)
+                elif isinstance(event, DoneEvent):
+                    if not event.model:
+                        typer.echo(event.answer, nl=False)
+                    typer.echo(f"\n\n{event.disclaimer}")
+                    if sources:
+                        typer.echo("\nNguồn:")
+                        for source in sources.sources:
+                            mark = "*" if source.n in event.citations else " "
+                            typer.echo(
+                                f" {mark}[{source.n}] {source.so_hieu} Điều {source.dieu}. "
+                                f"{source.title[:70]}"
+                            )
+                    if event.invalid_citations:
+                        typer.echo(f"Trích dẫn không hợp lệ đã loại: {event.invalid_citations}")
+                    typer.echo(f"Model: {event.model} · độ trễ (ms): {event.latency_ms}")
 
     _run(run())
