@@ -48,7 +48,7 @@ T1 repo + infra dev
 ## Task List (chi tiết trong `tasks/todo.md`)
 
 ### Phase 0: Nền móng
-- [ ] T1: Repo skeleton, tooling, infra dev (Postgres/Qdrant/Redis)
+- [x] T1: Repo skeleton, tooling, infra dev (Postgres/Qdrant/Redis)
 
 ### Phase 1: Parse văn bản (rủi ro cao nhất)
 - [ ] T2: Đọc DOCX, chuẩn hóa, metadata

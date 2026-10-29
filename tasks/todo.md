@@ -8,7 +8,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 0: Nền móng
 
-### - [ ] T1: Repo skeleton, tooling, infra dev
+### - [x] T1: Repo skeleton, tooling, infra dev
 
 **Description:** Khởi tạo git (`main` chứa SPEC + tasks, rồi branch `approach/hybrid-rag`), cấu trúc monorepo, `backend/` với uv + ruff + mypy + pytest, config qua pydantic-settings, CLI `lawqa` rỗng (typer), `compose.dev.yml` (Postgres 16, Qdrant ≥ 1.12 pin version, Redis 7) có healthcheck, Makefile với các target trong SPEC mục 5, `.env.example`, `.gitignore`.
 
