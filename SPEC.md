@@ -128,7 +128,7 @@ class RAGPipeline(Protocol):
 | Bảng | Nội dung |
 |---|---|
 | `documents` | `so_hieu` (unique, `45/2013/QH13`), tên, loại VB, cơ quan, ngày thông qua, `effective_date`, `expiry_date` (null), file nguồn, `sha256`, `aliases` (vd "Luật Đất đai", "Luật Đất đai 2013") |
-| `provisions` | Một Điều/Khoản/Điểm: `document_id`, `path` (`chuong-7/dieu-100/khoan-1/diem-a`), cấp, số, tiêu đề (với Điều), `text` nguyên văn, `valid_from`, `valid_to` (null) |
+| `provisions` | Một Điều/Khoản/Điểm: `document_id`, `path` (`dieu-100/khoan-1/diem-a` — số Điều là duy nhất trong văn bản; Chương/Mục lưu thành thuộc tính), cấp, số, tiêu đề (với Điều), `text` nguyên văn, `valid_from`, `valid_to` (null) |
 | `chunks` | Đơn vị index: id, `document_id`, danh sách provision, `text` hiển thị, `context_text` (cho embedding/BM25), số token, `valid_from`, `valid_to` |
 | `queries` | Log truy vấn (mục 3.6) |
 | `feedback` | 👍/👎 + ghi chú theo `query_id` |

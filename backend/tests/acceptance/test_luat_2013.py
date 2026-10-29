@@ -2,9 +2,13 @@ from datetime import date
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from lawqa.cli import app
 from lawqa.ingestion.docx_reader import read_paragraphs
+from lawqa.ingestion.legal_parser import parse_file
 from lawqa.ingestion.metadata import DocumentSections, extract_metadata, split_sections
+from lawqa.ingestion.models import Heading, ParsedDocument
 from lawqa.ingestion.normalize import normalize_lines
 
 RAW_FILE = Path(__file__).resolve().parents[3] / "raw_data" / "Luật-45-2013-QH13.docx"
@@ -34,3 +38,46 @@ def test_body_boundaries(sections: DocumentSections) -> None:
     assert sections.body[0] == "Chương 1."
     assert sections.body[-1] == "Chính phủ quy định chi tiết các điều, khoản được giao trong Luật."
     assert not any("Nguyễn Sinh Hùng" in line for line in sections.body)
+
+
+@pytest.fixture(scope="module")
+def parsed() -> ParsedDocument:
+    return parse_file(RAW_FILE)
+
+
+def test_structure_counts(parsed: ParsedDocument) -> None:
+    structure = parsed.structure
+
+    assert len(structure.chapters) == 14
+    assert len(structure.articles) == 212
+    assert [a.number for a in structure.articles] == [str(n) for n in range(1, 213)]
+    assert sum(1 for b in structure.blocks if isinstance(b, Heading) and b.kind == "muc") == 23
+    # The source file itself skips point e) in clause 4 of Article 40 (đ → g).
+    assert len(structure.warnings) == 1
+    assert structure.warnings[0].startswith("Điều 40: nhảy từ điểm đ) sang điểm g)")
+
+
+def test_chapter_title_spanning_two_lines(parsed: ParsedDocument) -> None:
+    chapter_7 = parsed.structure.chapters[6]
+
+    assert chapter_7.title == (
+        "ĐĂNG KÝ ĐẤT ĐAI, CẤP GIẤY CHỨNG NHẬN QUYỀN SỬ DỤNG ĐẤT, "
+        "QUYỀN SỞ HỮU NHÀ Ở VÀ TÀI SẢN KHÁC GẮN LIỀN VỚI ĐẤT"
+    )
+
+
+def test_article_100(parsed: ParsedDocument) -> None:
+    article = parsed.structure.articles[99]
+
+    assert article.title.startswith("Cấp Giấy chứng nhận quyền sử dụng đất")
+    assert article.chapter_number == "7"
+    assert [c.number for c in article.clauses] == [1, 2, 3, 4, 5]
+    assert [p.letter for p in article.clauses[0].points] == ["a", "b", "c", "d", "đ", "e", "g"]
+
+
+def test_dry_run_cli_reports_structure() -> None:
+    result = CliRunner().invoke(app, ["ingest", str(RAW_FILE), "--dry-run"])
+
+    assert result.exit_code == 0, result.output
+    assert "45/2013/QH13" in result.output
+    assert "Điều: 212" in result.output

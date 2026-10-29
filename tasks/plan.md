@@ -52,7 +52,7 @@ T1 repo + infra dev
 
 ### Phase 1: Parse văn bản (rủi ro cao nhất)
 - [x] T2: Đọc DOCX, chuẩn hóa, metadata
-- [ ] T3: Parser cấu trúc + kiểm tra toàn vẹn + `lawqa ingest --dry-run`
+- [x] T3: Parser cấu trúc + kiểm tra toàn vẹn + `lawqa ingest --dry-run`
 - [ ] T4: Chunker theo cấu trúc
 
 **Checkpoint 1** — dry-run trên file thật đúng 14 Chương / 212 Điều; người duyệt báo cáo parse.

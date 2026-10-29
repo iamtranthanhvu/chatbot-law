@@ -46,7 +46,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T3: Parser cấu trúc + kiểm tra toàn vẹn + dry-run
+### - [x] T3: Parser cấu trúc + kiểm tra toàn vẹn + dry-run
 
 **Description:** State machine dựa trên text: Chương (Ả Rập/La Mã + dòng tên), Mục, Điều, Khoản, Điểm (bảng chữ cái tiếng Việt có `đ`), đoạn không đánh số gắn đơn vị cha → cây `Provision` (Pydantic). `integrity` kiểm Điều liên tục, không trùng, tổng ký tự khớp. `lawqa ingest <file> --dry-run` in báo cáo (chưa ghi DB).
 
