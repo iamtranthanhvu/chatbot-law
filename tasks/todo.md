@@ -218,9 +218,10 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 **Estimated scope:** M
 
 ### Checkpoint 3: Walking skeleton
-- [ ] Tests pass; `lawqa ask` chạy end-to-end trên Mac
-- [ ] Ghi lại RAM đỉnh & latency một câu hỏi trên M1 (quyết định giữ `qwen3:8b` hay chuyển `qwen3:4b`)
-- [ ] **Người duyệt** thử ~10 câu hỏi (cả kiểu người dân lẫn chuyên môn)
+- [x] Tests pass; `lawqa ask` chạy end-to-end trên Mac
+- [x] Ghi lại RAM đỉnh & latency một câu hỏi trên M1 (quyết định giữ `qwen3:8b` hay chuyển `qwen3:4b`)
+- [x] **Người duyệt** thử ~10 câu hỏi (cả kiểu người dân lẫn chuyên môn)
+- [x] Kết quả: dev dùng `qwen3:4b-instruct` (không dùng tag `qwen3:4b` = bản Thinking). 10 câu: 4b 6✅/2⚠️/2❌, ~28s/câu; 8b 5✅/2⚠️/3❌, ~66s/câu, swap nhiều trên M1 16GB. Lỗi còn lại giao cho T14 (rerank), T15 ("Điều 100" không tìm ra), T16 ("thổ cư"→"đất ở"), T17 (ngoài phạm vi vẫn gọi LLM), T18 (gán nhầm nguồn)
 
 ---
 
