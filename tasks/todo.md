@@ -81,9 +81,10 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 **Estimated scope:** S
 
 ### Checkpoint 1: Parse
-- [ ] `make lint typecheck test` + acceptance pass
-- [ ] Dry-run trên file 2013 đúng 14 Chương / 212 Điều, mọi chunk ≤ 512 token
-- [ ] **Người duyệt** báo cáo dry-run + mẫu 3 Điều (ngắn, trung bình, dài nhất) trước khi đi tiếp
+- [x] `make lint typecheck test` + acceptance pass
+- [x] Dry-run trên file 2013 đúng 14 Chương / 212 Điều, mọi chunk ≤ 512 token
+- [x] **Người duyệt** báo cáo dry-run + mẫu 3 Điều (ngắn, trung bình, dài nhất) trước khi đi tiếp
+- [x] Kết quả duyệt: sửa lỗi đánh máy điểm g) → e) ở Điều 40 khoản 4 trong file gốc; chuyên gia xác nhận đoạn không đánh số thuộc đơn vị đứng trước nó (khóa bằng acceptance test); sửa bộ đọc DOCX làm mất chữ trong smart tag ("Việt Nam")
 
 ---
 

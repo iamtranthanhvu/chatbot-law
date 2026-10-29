@@ -54,9 +54,35 @@ def test_structure_counts(parsed: ParsedDocument) -> None:
     assert len(structure.articles) == 212
     assert [a.number for a in structure.articles] == [str(n) for n in range(1, 213)]
     assert sum(1 for b in structure.blocks if isinstance(b, Heading) and b.kind == "muc") == 23
-    # The source file itself skips point e) in clause 4 of Article 40 (đ → g).
-    assert len(structure.warnings) == 1
-    assert structure.warnings[0].startswith("Điều 40: nhảy từ điểm đ) sang điểm g)")
+    assert structure.warnings == []
+
+
+def test_article_40_clause_4_points_after_source_fix(parsed: ParsedDocument) -> None:
+    clause_4 = parsed.structure.articles[39].clauses[3]
+
+    assert [p.letter for p in clause_4.points] == ["a", "b", "c", "d", "đ", "e"]
+
+
+def test_text_wrapped_in_word_smart_tags_is_not_lost(parsed: ParsedDocument) -> None:
+    assert parsed.preamble[0] == "Căn cứ Hiến pháp nước Cộng hòa xã hội chủ nghĩa Việt Nam;"
+    article_5 = parsed.structure.articles[4]
+    assert "6. Người Việt Nam định cư ở nước ngoài theo quy định của pháp luật về quốc tịch;" in (
+        article_5.all_lines()
+    )
+
+
+def test_unnumbered_paragraph_belongs_to_preceding_point(parsed: ParsedDocument) -> None:
+    # Rule confirmed by a legal expert: everything after a marker, line breaks included,
+    # belongs to that unit until the next marker of the same or a higher level.
+    article_44_point_a = parsed.structure.articles[43].clauses[0].points[0]
+    assert article_44_point_a.lines[1].startswith(
+        "Bộ Tài nguyên và Môi trường có trách nhiệm giúp Hội đồng thẩm định"
+    )
+
+    article_29_point_b = parsed.structure.articles[28].clauses[3].points[1]
+    assert article_29_point_b.lines[-1].startswith(
+        "Bộ Tài nguyên và Môi trường, cơ quan quản lý đất đai của tỉnh"
+    )
 
 
 def test_chapter_title_spanning_two_lines(parsed: ParsedDocument) -> None:

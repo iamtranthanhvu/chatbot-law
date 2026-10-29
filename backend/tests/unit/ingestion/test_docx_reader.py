@@ -1,8 +1,29 @@
 from pathlib import Path
 
 import docx
+from docx.oxml import OxmlElement
+from docx.oxml.ns import qn
+from lxml import etree
 
 from lawqa.ingestion.docx_reader import read_paragraphs
+
+MC_NS = "http://schemas.openxmlformats.org/markup-compatibility/2006"
+
+
+def _run(text: str, tag: str = "w:t") -> etree._Element:
+    run = OxmlElement("w:r")
+    text_element = OxmlElement(tag)
+    text_element.text = text
+    run.append(text_element)
+    return run
+
+
+def _wrapped(wrapper_tag: str, text: str, **attrs: str) -> etree._Element:
+    wrapper = OxmlElement(wrapper_tag)
+    for key, value in attrs.items():
+        wrapper.set(qn(key), value)
+    wrapper.append(_run(text))
+    return wrapper
 
 
 def _build_docx(path: Path) -> Path:
@@ -59,3 +80,44 @@ def test_merged_cells_are_read_once(tmp_path: Path) -> None:
     document.save(str(path))
 
     assert read_paragraphs(path) == ["CHỦ TỊCH QUỐC HỘI"]
+
+
+def test_reads_text_inside_smart_tags_and_other_run_wrappers(tmp_path: Path) -> None:
+    document = docx.Document()
+    paragraph = document.add_paragraph("Cộng hòa xã hội chủ nghĩa Việt ")
+    paragraph._p.append(
+        _wrapped(
+            "w:smartTag",
+            "Nam",
+            **{
+                "w:uri": "urn:schemas-microsoft-com:office:smarttags",
+                "w:element": "country-region",
+            },
+        )
+    )
+    paragraph._p.append(_run("; người "))
+    paragraph._p.append(_wrapped("w:customXml", "Việt Nam", **{"w:element": "place"}))
+    paragraph._p.append(_wrapped("w:ins", " định cư", **{"w:id": "1", "w:author": "a"}))
+    deleted = OxmlElement("w:del")
+    deleted.set(qn("w:id"), "2")
+    deleted.set(qn("w:author"), "a")
+    deleted.append(_run(" CHỮ ĐÃ XÓA", tag="w:delText"))
+    paragraph._p.append(deleted)
+    path = tmp_path / "wrapped.docx"
+    document.save(str(path))
+
+    assert read_paragraphs(path) == ["Cộng hòa xã hội chủ nghĩa Việt Nam; người Việt Nam định cư"]
+
+
+def test_alternate_content_is_read_once(tmp_path: Path) -> None:
+    document = docx.Document()
+    paragraph = document.add_paragraph("Điều 1. ")
+    alternate = etree.SubElement(paragraph._p, f"{{{MC_NS}}}AlternateContent")
+    choice = etree.SubElement(alternate, f"{{{MC_NS}}}Choice", Requires="wps")
+    choice.append(_run("Phạm vi"))
+    fallback = etree.SubElement(alternate, f"{{{MC_NS}}}Fallback")
+    fallback.append(_run("Phạm vi"))
+    path = tmp_path / "alternate.docx"
+    document.save(str(path))
+
+    assert read_paragraphs(path) == ["Điều 1. Phạm vi"]

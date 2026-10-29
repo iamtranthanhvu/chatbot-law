@@ -6,10 +6,24 @@ import docx
 from docx.document import Document
 from docx.oxml.ns import qn
 from docx.oxml.table import CT_Tbl
-from docx.oxml.text.paragraph import CT_P
 from docx.table import Table
-from docx.text.paragraph import Paragraph
 from lxml.etree import _Element
+
+_MC = "{http://schemas.openxmlformats.org/markup-compatibility/2006}"
+_TEXT = qn("w:t")
+_LINE_BREAKS = {qn("w:br"), qn("w:cr")}
+_TAB = qn("w:tab")
+_NO_BREAK_HYPHEN = qn("w:noBreakHyphen")
+# Not part of the visible paragraph text: deleted revisions, duplicate fallback renderings,
+# text boxes (their own paragraphs) and paragraph/run property blocks.
+_SKIPPED = {
+    qn("w:del"),
+    qn("w:moveFrom"),
+    qn("w:txbxContent"),
+    qn("w:pPr"),
+    qn("w:rPr"),
+    f"{_MC}Fallback",
+}
 
 
 def read_paragraphs(path: Path) -> list[str]:
@@ -27,13 +41,36 @@ def read_paragraphs(path: Path) -> list[str]:
 def _iter_block_texts(container: _Element, document: Document) -> Iterator[str]:
     for child in container.iterchildren():
         if child.tag == qn("w:p"):
-            yield Paragraph(cast(CT_P, child), document).text
+            yield "".join(_iter_paragraph_text(child))
         elif child.tag == qn("w:tbl"):
             yield from _iter_table_texts(Table(cast(CT_Tbl, child), document), document)
         elif child.tag == qn("w:sdt"):
             content = child.find(qn("w:sdtContent"))
             if content is not None:
                 yield from _iter_block_texts(content, document)
+
+
+def _iter_paragraph_text(element: _Element) -> Iterator[str]:
+    """Collect visible text from every descendant run, whatever wraps it.
+
+    python-docx's Paragraph.text only reads direct runs and hyperlinks, so text inside
+    smart tags (Word wraps "Việt Nam" in them), custom XML, fields and tracked insertions
+    is silently lost.
+    """
+    for child in element.iterchildren():
+        tag = child.tag
+        if not isinstance(tag, str) or tag in _SKIPPED:
+            continue
+        if tag == _TEXT:
+            yield child.text or ""
+        elif tag == _TAB:
+            yield "\t"
+        elif tag in _LINE_BREAKS:
+            yield "\n"
+        elif tag == _NO_BREAK_HYPHEN:
+            yield "-"
+        else:
+            yield from _iter_paragraph_text(child)
 
 
 def _iter_table_texts(table: Table, document: Document) -> Iterator[str]:
