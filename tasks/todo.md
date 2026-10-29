@@ -355,6 +355,19 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ### - [ ] T18: Prompt theo intent
 
+> **Code xong (`d42d406`), tiêu chí 3 chưa đạt — chờ review.** A/B trên seed (cùng retrieval `hybrid+rerank`, 4b-instruct, judge 8b, 1 lần chạy mỗi bên):
+> | metric | prompt chung | prompt theo intent |
+> |---|---|---|
+> | faithfulness | 0.945 | 0.955 |
+> | correctness | 0.898 | 0.886 |
+> | clarity (layperson) | 0.907 | 0.829 |
+> | citation precision | **0.779** | **0.676** |
+> | citation recall | 0.839 | 0.856 |
+> | invalid citation | 0.065 | 0.032 |
+> | đúng khung (situation/lookup) | — | 1.000 |
+> | total p50 | 120s | 146s |
+> Nguyên nhân precision giảm: (1) `topic_search` "liệt kê các quy định liên quan" → trích nhiều Điều hơn (trung bình 1.64 → 2.36 nguồn/câu; p10 trích 5 Điều trong khi đáp án chỉ Điều 188), có chỗ ghi "Điều 168" nhưng gắn [n] của Điều 167; (2) `situation`: phần Kết luận/Căn cứ pháp lý đôi khi không gắn [n] (s07: 0 trích dẫn hợp lệ).
+
 **Description:** Template `situation` (Kết luận → giải thích theo điều kiện → thông tin nên bổ sung → căn cứ; mức phạt không có trong dữ liệu thì nói rõ), `lookup`, `topic_search`, `procedure`; miễn trừ trách nhiệm chung; `done` event mang `missing_facts`.
 
 **Acceptance criteria:**
@@ -371,7 +384,19 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 **Estimated scope:** S
 
 ### Checkpoint 4: Baseline chất lượng
-- [ ] Tests pass; báo cáo eval đầy đủ 5 chế độ ablation được lưu trong `eval/results/`
+
+> **Retrieval, seed 29 câu** (`retrieval-d42d406-20261029-173010`, `retrieval-ee66f59-dirty-20261029-172520`):
+> | chế độ | R@5 | R@10 | MRR@10 | nDCG@10 | layperson R@10 |
+> |---|---|---|---|---|---|
+> | dense | 0.885 | **0.971** | 0.829 | 0.844 | |
+> | bm25 | 0.810 | 0.874 | 0.676 | 0.704 | |
+> | hybrid | 0.891 | 0.920 | 0.837 | 0.844 | |
+> | hybrid+rerank | 0.862 | 0.943 | **0.878** | **0.870** | 0.889 |
+> | hybrid+rerank+qu | **0.897** | 0.914 | 0.847 | 0.839 | 0.833 |
+> (tất cả đã bật tra Điều + đồng nghĩa). `hybrid+rerank` thắng về thứ hạng (MRR, nDCG) nhưng **thua dense ở R@10**; qu không cải thiện layperson. Seed chỉ 29 câu, chênh lệch ~0.03 nằm trong nhiễu.
+> Độ trễ trên M1: total p50 120–146s/câu (rerank chạy cho câu gốc + mỗi câu mở rộng đồng nghĩa × 40 ứng viên).
+
+- [x] Tests pass; báo cáo eval đầy đủ 5 chế độ ablation được lưu trong `eval/results/`
 - [ ] `hybrid+rerank` > `dense-only` và `bm25-only`; understanding cải thiện `layperson`
 - [ ] **Người duyệt** báo cáo và chốt ngưỡng Recall@10
 
