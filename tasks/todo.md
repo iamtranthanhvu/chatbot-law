@@ -292,7 +292,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** S
 
-### - [ ] T15: Tra thẳng Điều/Khoản/Điểm được trích dẫn
+### - [x] T15: Tra thẳng Điều/Khoản/Điểm được trích dẫn
 
 **Description:** Regex nhận "Điều 100", "khoản 2 Điều 5", "điểm a khoản 1 Điều 100" (có/không dấu, hoa/thường) → lấy chunk tương ứng từ Postgres, chèn đầu danh sách trước rerank.
 

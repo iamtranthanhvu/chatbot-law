@@ -307,3 +307,22 @@ async def list_documents(
         )
         for document, chunks in rows
     ]
+
+
+async def find_article_chunks(
+    session_factory: async_sessionmaker[AsyncSession], dieu: str, so_hieu: str | None = None
+) -> list[StoredChunk]:
+    query = (
+        select(ChunkRow, Document.so_hieu)
+        .join(Document, Document.id == ChunkRow.document_id)
+        .where(ChunkRow.article_number == dieu)
+        .order_by(Document.so_hieu, ChunkRow.ordinal)
+    )
+    if so_hieu is not None:
+        query = query.where(Document.so_hieu == so_hieu)
+    async with session_factory() as session:
+        rows = (await session.execute(query)).all()
+    return [
+        StoredChunk.model_validate({**_columns(chunk), "so_hieu": doc_so_hieu})
+        for chunk, doc_so_hieu in rows
+    ]

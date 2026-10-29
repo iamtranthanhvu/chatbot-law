@@ -50,3 +50,12 @@ def test_most_relevant_chunks_are_kept_within_the_budget() -> None:
 
 def test_no_chunks_gives_no_sources() -> None:
     assert pack_context([], WordCounter(), 1000) == []
+
+
+def test_articles_named_in_the_question_are_numbered_first() -> None:
+    named = make_chunk("100", "điều được hỏi", score=1.0).model_copy(update={"stage": "lookup"})
+    chunks = [make_chunk("98", "nguyên tắc", score=0.9), named, make_chunk("101", "khác")]
+
+    sources = pack_context(chunks, WordCounter(), max_tokens=1000)
+
+    assert [s.article_number for s in sources] == ["100", "98", "101"]

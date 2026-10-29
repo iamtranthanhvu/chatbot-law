@@ -42,6 +42,7 @@ class Settings(IngestionSettings, DatabaseSettings):
     judge_api_style: Literal["openai", "ollama"] = "openai"
 
     retrieval_mode: str = "hybrid+rerank"
+    citation_lookup: bool = True
     rerank_top_n: int = Field(default=8, gt=0)
     rerank_candidates: int = Field(default=40, gt=0)
     rerank_min_score: float = Field(default=0.005, ge=0, le=1)

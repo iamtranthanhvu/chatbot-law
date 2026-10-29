@@ -47,7 +47,15 @@ def _groups(chunks: Iterable[RetrievedChunk]) -> list[list[RetrievedChunk]]:
     by_article: dict[tuple[str, str], list[RetrievedChunk]] = {}
     for chunk in chunks:
         by_article.setdefault((chunk.so_hieu, chunk.article_number), []).append(chunk)
-    ordered = sorted(by_article.items(), key=lambda item: (item[0][0], _article_key(item[0][1])))
+    # Articles the question names explicitly come first, the rest in reading order.
+    ordered = sorted(
+        by_article.items(),
+        key=lambda item: (
+            not any(chunk.stage == "lookup" for chunk in item[1]),
+            item[0][0],
+            _article_key(item[0][1]),
+        ),
+    )
     return [sorted(group, key=lambda c: c.ordinal) for _, group in ordered]
 
 

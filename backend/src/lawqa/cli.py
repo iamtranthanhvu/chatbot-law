@@ -28,6 +28,7 @@ from lawqa.ingestion.store import DocumentExistsError, list_documents
 from lawqa.ingestion.tokens import HFTokenCounter
 from lawqa.pipelines.base import DoneEvent, ErrorEvent, Query, SourcesEvent, TokenEvent
 from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings
+from lawqa.retrieval.citation_lookup import CitationAwareRetriever, CitationLookup
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
 from lawqa.retrieval.hybrid import HybridRetriever, RetrievalSettings
 from lawqa.retrieval.rerank import Reranker, RerankingRetriever, RerankSettings
@@ -79,15 +80,16 @@ _MODES = {f"{m}{r}" for m in ("dense", "bm25", "hybrid") for r in ("", "+rerank"
 
 
 @asynccontextmanager
-async def _retriever() -> AsyncIterator[RerankingRetriever]:
+async def _retriever() -> AsyncIterator[CitationAwareRetriever]:
     settings = get_settings()
+    engine = create_engine(settings.database_url)
     qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     encoder = EncoderClient(settings.model_server_url)
     try:
         first_stage = HybridRetriever(
             qdrant, encoder, RetrievalSettings(collection=settings.qdrant_collection)
         )
-        yield RerankingRetriever(
+        reranking = RerankingRetriever(
             first_stage,
             Reranker(
                 encoder,
@@ -95,9 +97,15 @@ async def _retriever() -> AsyncIterator[RerankingRetriever]:
             ),
             default_mode=settings.retrieval_mode,
         )
+        yield CitationAwareRetriever(
+            reranking,
+            CitationLookup(create_session_factory(engine)),
+            enabled=settings.citation_lookup,
+        )
     finally:
         await encoder.aclose()
         await qdrant.close()
+        await engine.dispose()
 
 
 @asynccontextmanager
@@ -342,6 +350,7 @@ def eval_retrieval(
                     "tokenizer": settings.tokenizer_name,
                     "rerank_top_n": settings.rerank_top_n,
                     "rerank_candidates": settings.rerank_candidates,
+                    "citation_lookup": settings.citation_lookup,
                 },
                 dataset=dataset.name,
             )
@@ -407,6 +416,7 @@ def eval_generation(
                         "rerank_top_n": settings.rerank_top_n,
                         "rerank_candidates": settings.rerank_candidates,
                         "rerank_min_score": settings.rerank_min_score,
+                        "citation_lookup": settings.citation_lookup,
                         "retrieval": RetrievalSettings(
                             collection=settings.qdrant_collection
                         ).model_dump(),
