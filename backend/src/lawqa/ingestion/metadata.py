@@ -4,6 +4,8 @@ from datetime import date
 
 from pydantic import BaseModel, ConfigDict
 
+from lawqa.ingestion.normalize import sentence_case
+
 
 class MetadataError(ValueError):
     pass
@@ -107,14 +109,14 @@ def _find_type_and_title(header: list[str]) -> tuple[str, str]:
                     title_lines.append(candidate)
             title = " ".join(title_lines)
             if title.isupper():
-                title = _sentence_case(title)
+                title = sentence_case(title)
             return _DOC_TYPES[line], title
     raise MetadataError("Không xác định được loại văn bản (LUẬT, NGHỊ QUYẾT, ...)")
 
 
 def _find_issuer(header: list[str]) -> str | None:
     first = next((line for line in header if _has_text(line)), None)
-    return _sentence_case(first) if first and first.isupper() else first
+    return sentence_case(first) if first and first.isupper() else first
 
 
 def _find_effective_date(body: list[str]) -> date | None:
@@ -141,11 +143,6 @@ def _find_date(pattern: re.Pattern[str], lines: list[str]) -> date | None:
 def _to_date(match: re.Match[str]) -> date:
     day, month, year = (int(group) for group in match.groups()[-3:])
     return date(year, month, day)
-
-
-def _sentence_case(text: str) -> str:
-    lowered = text.lower()
-    return lowered[:1].upper() + lowered[1:]
 
 
 def _has_text(line: str) -> bool:

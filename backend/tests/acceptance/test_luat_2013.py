@@ -5,11 +5,13 @@ import pytest
 from typer.testing import CliRunner
 
 from lawqa.cli import app
+from lawqa.ingestion.chunker import chunk_document
 from lawqa.ingestion.docx_reader import read_paragraphs
 from lawqa.ingestion.legal_parser import parse_file
 from lawqa.ingestion.metadata import DocumentSections, extract_metadata, split_sections
 from lawqa.ingestion.models import Heading, ParsedDocument
 from lawqa.ingestion.normalize import normalize_lines
+from lawqa.ingestion.tokens import HFTokenCounter
 
 RAW_FILE = Path(__file__).resolve().parents[3] / "raw_data" / "Luật-45-2013-QH13.docx"
 
@@ -81,3 +83,15 @@ def test_dry_run_cli_reports_structure() -> None:
     assert result.exit_code == 0, result.output
     assert "45/2013/QH13" in result.output
     assert "Điều: 212" in result.output
+
+
+def test_chunks_respect_token_limit_and_keep_all_text(parsed: ParsedDocument) -> None:
+    counter = HFTokenCounter("BAAI/bge-m3")
+    chunks = chunk_document(parsed, counter, max_tokens=512)
+
+    assert all(chunk.token_count <= 512 for chunk in chunks)
+    assert len({chunk.path for chunk in chunks}) == len(chunks)
+    for article in parsed.structure.articles:
+        own = [c for c in chunks if c.article_number == article.number]
+        rebuilt = " ".join(c.text for c in sorted(own, key=lambda c: c.order)).split()
+        assert rebuilt == " ".join(article.all_lines()[1:]).split(), f"Điều {article.number}"

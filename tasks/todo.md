@@ -63,7 +63,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T4: Chunker theo cấu trúc
+### - [x] T4: Chunker theo cấu trúc
 
 **Description:** Chunk = 1 Điều; Điều > `CHUNK_MAX_TOKENS` → tách theo Khoản (gộp Khoản ngắn liền nhau), Khoản quá dài → theo Điểm. `context_text` = breadcrumb + nội dung; `text` = nguyên văn. Đếm token bằng tokenizer BGE-M3 (`tokenizers`). Dry-run in phân bố độ dài chunk.
 

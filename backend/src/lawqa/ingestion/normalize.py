@@ -27,3 +27,8 @@ def normalize_text(text: str) -> str:
 
 def normalize_lines(lines: Iterable[str]) -> list[str]:
     return [normalized for line in lines if (normalized := normalize_text(line))]
+
+
+def sentence_case(text: str) -> str:
+    lowered = text.lower()
+    return lowered[:1].upper() + lowered[1:]

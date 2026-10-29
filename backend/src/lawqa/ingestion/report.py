@@ -1,9 +1,11 @@
+import statistics
 from datetime import date
 
+from lawqa.ingestion.chunker import Chunk
 from lawqa.ingestion.models import ParsedDocument
 
 
-def format_report(document: ParsedDocument) -> str:
+def format_report(document: ParsedDocument, chunks: list[Chunk]) -> str:
     meta = document.metadata
     structure = document.structure
     articles = structure.articles
@@ -19,6 +21,13 @@ def format_report(document: ParsedDocument) -> str:
         f"Cấu trúc: Chương: {len(structure.chapters)} · Mục: {len(sections)}"
         f" · Điều: {len(articles)} · Khoản: {len(clauses)} · Điểm: {len(points)}",
     ]
+    if chunks:
+        sizes = [chunk.token_count for chunk in chunks]
+        split_articles = {chunk.article_number for chunk in chunks if "/" in chunk.path}
+        lines.append(
+            f"Chunk: {len(chunks)} · token min/trung vị/max: {min(sizes)}/"
+            f"{int(statistics.median(sizes))}/{max(sizes)} · Điều phải tách: {len(split_articles)}"
+        )
     if structure.warnings:
         lines.append(f"Cảnh báo ({len(structure.warnings)}):")
         lines.extend(f"  - {warning}" for warning in structure.warnings)
