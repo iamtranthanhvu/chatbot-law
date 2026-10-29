@@ -1,4 +1,5 @@
 from functools import lru_cache
+from typing import Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -32,6 +33,7 @@ class Settings(IngestionSettings, DatabaseSettings):
     llm_base_url: str
     llm_api_key: str = "not-needed"
     llm_model: str
+    llm_api_style: Literal["openai", "ollama"] = "openai"
 
     log_level: str = "INFO"
     log_json: bool = False

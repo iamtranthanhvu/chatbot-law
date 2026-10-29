@@ -183,7 +183,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T10: LLM client + kiểm tra trích dẫn
+### - [x] T10: LLM client + kiểm tra trích dẫn
 
 **Description:** Client OpenAI-compatible (`LLM_BASE_URL`, `LLM_MODEL`), streaming, timeout + retry backoff, tắt thinking của Qwen3 (kiểm chứng trên Ollama; fallback `/no_think` + lọc `<think>`). `citations.py`: tìm `[n]`, loại `[n]` không có trong nguồn, trả danh sách trích dẫn hợp lệ + số bị loại.
 

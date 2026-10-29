@@ -59,7 +59,7 @@ Không phân loại người dùng theo tài khoản. Hệ thống **phân loạ
 
 ### 2.1 Chạy LLM: Mac (dev) vs GPU server (prod)
 
-Nguyên tắc: **code chỉ nói chuyện với API OpenAI-compatible**; đổi môi trường chỉ bằng biến `.env`.
+Nguyên tắc: **một LLM client, đổi môi trường chỉ bằng biến `.env`** (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_STYLE`). Prod gọi vLLM qua API OpenAI-compatible (`LLM_API_STYLE=openai`, tắt thinking bằng `chat_template_kwargs.enable_thinking=false`); dev gọi API gốc `/api/chat` của Ollama (`LLM_API_STYLE=ollama`, `think=false`) vì endpoint `/v1` của Ollama bỏ qua mọi tham số tắt thinking — Qwen3 vẫn suy nghĩ ngầm, tốn hết token.
 
 | Thành phần | Dev (MacBook M1 16GB) | Prod (server GPU) |
 |---|---|---|
@@ -70,7 +70,7 @@ Nguyên tắc: **code chỉ nói chuyện với API OpenAI-compatible**; đổi 
 
 **Vì sao LLM và model-server chạy native trên Mac:** Docker Desktop trên macOS **không truyền GPU Metal vào container** → model trong Docker chỉ chạy CPU, chậm 5–10 lần.
 
-Ngân sách RAM dev: LLM ~5.5GB + bge-m3 ~1.2GB + reranker ~1.2GB + Docker ~2GB. Fallback: `qwen3:4b`.
+Ngân sách RAM dev: LLM ~5.5GB + bge-m3 ~1.2GB + reranker ~1.2GB + Docker ~2GB. Fallback: `qwen3:4b-instruct` (không dùng tag `qwen3:4b` — tag này là Qwen3-4B-**Thinking**-2507, luôn suy nghĩ, không tắt được).
 Cùng họ model ở dev và prod. Kết quả eval **chính thức** chỉ lấy trên prod (GPU).
 
 ### 2.2 Sơ đồ thành phần
@@ -257,7 +257,7 @@ event: error    data: {"code":"BUSY","message":"Hệ thống đang bận, vui l�
 |---|---|
 | Backend | Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2 (async) + asyncpg, Alembic, httpx, structlog, typer (CLI), python-docx, mmh3, redis-py |
 | Model server | FastAPI + FlagEmbedding (`BAAI/bge-m3`, `BAAI/bge-reranker-v2-m3`), PyTorch (mps/cuda/cpu) |
-| LLM | Ollama (dev) / vLLM (prod), client `openai` SDK trỏ vào `LLM_BASE_URL` |
+| LLM | Ollama (dev) / vLLM (prod); client tự viết bằng httpx (`generation/llm_client.py`) — SDK `openai` 3.x dùng httpx2 và không có các tham số tắt thinking riêng của Ollama/vLLM |
 | Data | PostgreSQL 16, Qdrant (≥ 1.12: Query API, sparse IDF), Redis 7 |
 | Frontend | Next.js (App Router, bản stable mới nhất lúc scaffold), TypeScript strict, Tailwind CSS, shadcn/ui, pnpm |
 | Tooling | uv, ruff, mypy (strict cho `src/`), pytest, testcontainers, Vitest, Playwright, pre-commit |
