@@ -1,9 +1,10 @@
 import re
 import uuid
+from datetime import date, datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel
-from sqlalchemy import delete, insert, select, update
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from lawqa.db.models import ChunkRow, CorpusState, Document, Provision
@@ -188,4 +189,121 @@ def build_chunk_rows(
             "valid_to": None,
         }
         for chunk in chunks
+    ]
+
+
+class DocumentState(BaseModel):
+    document_id: uuid.UUID
+    sha256: str
+
+
+class StoredChunk(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    document_id: uuid.UUID
+    so_hieu: str
+    path: str
+    ordinal: int
+    article_number: str
+    article_title: str
+    chapter_number: str | None
+    chapter_title: str | None
+    section_number: str | None
+    section_title: str | None
+    clauses: list[int]
+    points: list[str]
+    text: str
+    context_text: str
+    token_count: int
+    valid_from: date | None
+    valid_to: date | None
+
+
+class DocumentSummary(BaseModel):
+    so_hieu: str
+    name: str
+    effective_date: date | None
+    expiry_date: date | None
+    source_file: str
+    sha256: str
+    chunks: int
+    created_at: datetime
+
+
+async def document_state(
+    session_factory: async_sessionmaker[AsyncSession], so_hieu: str
+) -> DocumentState | None:
+    async with session_factory() as session:
+        row = (
+            await session.execute(
+                select(Document.id, Document.sha256).where(Document.so_hieu == so_hieu)
+            )
+        ).first()
+    return DocumentState(document_id=row.id, sha256=row.sha256) if row else None
+
+
+async def load_chunks(
+    session_factory: async_sessionmaker[AsyncSession], document_id: uuid.UUID | None = None
+) -> list[StoredChunk]:
+    query = (
+        select(ChunkRow, Document.so_hieu)
+        .join(Document, Document.id == ChunkRow.document_id)
+        .order_by(
+            Document.so_hieu,
+            func.length(ChunkRow.article_number),
+            ChunkRow.article_number,
+            ChunkRow.ordinal,
+        )
+    )
+    if document_id is not None:
+        query = query.where(ChunkRow.document_id == document_id)
+    async with session_factory() as session:
+        rows = (await session.execute(query)).all()
+    return [
+        StoredChunk.model_validate({**_columns(chunk), "so_hieu": so_hieu})
+        for chunk, so_hieu in rows
+    ]
+
+
+def _columns(row: ChunkRow) -> dict[str, Any]:
+    return {column.key: getattr(row, column.key) for column in ChunkRow.__table__.columns}
+
+
+async def remove_document(
+    session_factory: async_sessionmaker[AsyncSession], so_hieu: str
+) -> uuid.UUID | None:
+    async with session_factory() as session, session.begin():
+        await session.scalar(select(CorpusState.version).with_for_update())
+        document_id = await session.scalar(
+            delete(Document).where(Document.so_hieu == so_hieu).returning(Document.id)
+        )
+        if document_id is not None:
+            await session.execute(update(CorpusState).values(version=CorpusState.version + 1))
+    return document_id
+
+
+async def list_documents(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> list[DocumentSummary]:
+    query = (
+        select(Document, func.count(ChunkRow.id))
+        .outerjoin(ChunkRow, ChunkRow.document_id == Document.id)
+        .group_by(Document.id)
+        .order_by(Document.so_hieu)
+    )
+    async with session_factory() as session:
+        rows = (await session.execute(query)).all()
+    return [
+        DocumentSummary(
+            so_hieu=document.so_hieu,
+            name=document.name,
+            effective_date=document.effective_date,
+            expiry_date=document.expiry_date,
+            source_file=document.source_file,
+            sha256=document.sha256,
+            chunks=chunks,
+            created_at=document.created_at,
+        )
+        for document, chunks in rows
     ]

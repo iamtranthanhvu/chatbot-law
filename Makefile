@@ -54,3 +54,9 @@ test-all:
 
 ingest:
 	$(BACKEND) lawqa ingest ../$(FILE) $(ARGS)
+
+reindex:
+	$(BACKEND) lawqa reindex
+
+docs:
+	$(BACKEND) lawqa documents list

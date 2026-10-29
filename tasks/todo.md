@@ -141,7 +141,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** S
 
-### - [ ] T8: Qdrant indexer + CLI nạp thật
+### - [x] T8: Qdrant indexer + CLI nạp thật
 
 **Description:** Tạo collection (named vectors `dense` 1024 cosine + sparse `bm25` với `modifier: idf`, payload index `so_hieu`, `dieu`, `valid_from`, `valid_to`). `lawqa ingest` = parse → chunk → Postgres → embed qua model-server (batch) → upsert Qdrant (id `uuid5`). `lawqa reindex` rebuild từ Postgres. `lawqa documents list|show|remove`.
 
@@ -159,8 +159,8 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 **Estimated scope:** M
 
 ### Checkpoint 2: Dữ liệu đã nạp
-- [ ] Tests pass; Luật 2013 nằm trong Postgres + Qdrant, số lượng khớp
-- [ ] Nạp lại không trùng; reindex tái tạo đúng
+- [x] Tests pass; Luật 2013 nằm trong Postgres + Qdrant, số lượng khớp (279 chunk / 279 point; 212 Điều, 782 khoản, 609 điểm)
+- [x] Nạp lại không trùng (unchanged, 2.5s); reindex tái tạo đúng 279 point cùng id; model-server tắt → lỗi rõ, index không bị xóa
 
 ---
 
