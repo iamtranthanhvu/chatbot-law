@@ -90,7 +90,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 2: Lưu trữ & index
 
-### - [ ] T5: Model-server (embed + rerank)
+### - [x] T5: Model-server (embed + rerank)
 
 **Description:** Service FastAPI riêng: `POST /embed` (dense BGE-M3, batch, normalize), `POST /rerank` (bge-reranker-v2-m3), `GET /healthz`; `DEVICE=auto` (cuda → mps → cpu), fp16 khi có GPU, reranker nạp lười. `make models` tải weights, `make dev-models` chạy native.
 
