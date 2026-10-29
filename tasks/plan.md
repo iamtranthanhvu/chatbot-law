@@ -59,7 +59,7 @@ T1 repo + infra dev
 
 ### Phase 2: Lưu trữ & index
 - [x] T5: Model-server (embed + rerank)
-- [ ] T6: DB schema + ghi văn bản/provision/chunk vào Postgres
+- [x] T6: DB schema + ghi văn bản/provision/chunk vào Postgres
 - [ ] T7: BM25 tokenizer + encoder
 - [ ] T8: Qdrant indexer + `lawqa ingest` / `reindex` / `documents`
 

@@ -107,7 +107,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T6: DB schema + ghi Postgres
+### - [x] T6: DB schema + ghi Postgres
 
 **Description:** SQLAlchemy models + Alembic migration đầu tiên: `documents`, `provisions`, `chunks`, `corpus_state` (có `valid_from`/`valid_to`). Repository ghi một văn bản trong một transaction; idempotent theo `sha256`; `--replace` xóa và nạp lại; `corpus_version` tăng mỗi lần thay đổi.
 

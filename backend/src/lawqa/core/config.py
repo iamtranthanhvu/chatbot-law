@@ -15,10 +15,15 @@ class IngestionSettings(BaseSettings):
     tokenizer_name: str = "BAAI/bge-m3"
 
 
-class Settings(IngestionSettings):
+class DatabaseSettings(BaseSettings):
     model_config = _ENV
 
     database_url: str
+
+
+class Settings(IngestionSettings, DatabaseSettings):
+    model_config = _ENV
+
     qdrant_url: str
     qdrant_collection: str = "lawqa_chunks"
     redis_url: str

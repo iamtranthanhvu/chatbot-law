@@ -17,6 +17,9 @@ infra-up:
 infra-down:
 	$(COMPOSE_DEV) down
 
+migrate:
+	$(BACKEND) alembic upgrade head
+
 models:
 	$(MODEL_SERVER) python -m model_server.download
 
