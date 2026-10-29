@@ -2,7 +2,11 @@ import re
 
 from pydantic import BaseModel
 
-_CITATION = re.compile(r"\s*\[(\d+(?:\s*[,;]\s*\d+)*)\]")
+_GROUP = r"\[\d+(?:\s*[,;]\s*\d+)*\]"
+# A run of adjacent citation groups such as "[1], [3]" or "[2][5]" is cleaned as one unit so
+# removing invalid groups does not leave stray separators ("[1],,,").
+_RUN = re.compile(rf"\s*{_GROUP}(?:\s*[,;]?\s*{_GROUP})*")
+_SEPARATOR = re.compile(rf"{_GROUP}(\s*[,;]?\s*){_GROUP}")
 
 
 class CitationCheck(BaseModel):
@@ -17,13 +21,19 @@ def validate_citations(text: str, source_count: int) -> CitationCheck:
     invalid: list[int] = []
 
     def clean(match: re.Match[str]) -> str:
-        numbers = [int(n) for n in re.findall(r"\d+", match.group(1))]
-        valid = [n for n in numbers if 1 <= n <= source_count]
-        invalid.extend(n for n in numbers if not 1 <= n <= source_count)
-        cited.extend(n for n in valid if n not in cited)
-        if not valid:
+        run = match.group(0)
+        kept: list[str] = []
+        for group in re.findall(_GROUP, run):
+            numbers = [int(n) for n in re.findall(r"\d+", group)]
+            valid = [n for n in numbers if 1 <= n <= source_count]
+            invalid.extend(n for n in numbers if not 1 <= n <= source_count)
+            cited.extend(n for n in valid if n not in cited)
+            if valid:
+                kept.append(f"[{', '.join(str(n) for n in valid)}]")
+        if not kept:
             return ""
-        leading = match.group(0)[: match.start(1) - match.start(0) - 1]
-        return f"{leading}[{', '.join(str(n) for n in valid)}]"
+        separator = _SEPARATOR.search(run)
+        leading = run[: len(run) - len(run.lstrip())]
+        return leading + (separator.group(1) if separator else "").join(kept)
 
-    return CitationCheck(text=_CITATION.sub(clean, text), cited=cited, invalid=invalid)
+    return CitationCheck(text=_RUN.sub(clean, text), cited=cited, invalid=invalid)

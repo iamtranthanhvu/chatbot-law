@@ -38,3 +38,23 @@ def test_text_without_citations_is_unchanged() -> None:
 
     assert check.text == "Không đủ căn cứ để trả lời."
     assert check.cited == []
+
+
+def test_removing_invalid_citations_leaves_no_dangling_separators() -> None:
+    check = validate_citations("Cần có sự chấp thuận [1],[134], [143], [64].", source_count=8)
+
+    assert check.text == "Cần có sự chấp thuận [1]."
+    assert check.invalid == [134, 143, 64]
+
+
+def test_a_run_of_only_invalid_citations_disappears_cleanly() -> None:
+    check = validate_citations("Theo Điều 64 [64], [65] thì bị thu hồi.", source_count=3)
+
+    assert check.text == "Theo Điều 64 thì bị thu hồi."
+
+
+def test_valid_citations_in_a_run_keep_their_order() -> None:
+    check = validate_citations("Được bồi thường [2], [9], [3].", source_count=3)
+
+    assert check.text == "Được bồi thường [2], [3]."
+    assert check.cited == [2, 3]
