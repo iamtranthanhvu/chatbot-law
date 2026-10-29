@@ -32,6 +32,11 @@ from lawqa.retrieval.citation_lookup import CitationAwareRetriever, CitationLook
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
 from lawqa.retrieval.hybrid import HybridRetriever, RetrievalSettings
 from lawqa.retrieval.rerank import Reranker, RerankingRetriever, RerankSettings
+from lawqa.understanding.synonyms import (
+    DEFAULT_SYNONYMS,
+    SynonymDictionary,
+    SynonymExpandingRetriever,
+)
 
 app = typer.Typer(help="Law QA — công cụ vận hành (nạp văn bản, tìm kiếm, hỏi đáp, đánh giá).")
 documents_app = typer.Typer(help="Xem và quản lý văn bản đã nạp.")
@@ -97,8 +102,13 @@ async def _retriever() -> AsyncIterator[CitationAwareRetriever]:
             ),
             default_mode=settings.retrieval_mode,
         )
-        yield CitationAwareRetriever(
+        expanding = SynonymExpandingRetriever(
             reranking,
+            SynonymDictionary.load(DEFAULT_SYNONYMS),
+            enabled=settings.synonym_expansion,
+        )
+        yield CitationAwareRetriever(
+            expanding,
             CitationLookup(create_session_factory(engine)),
             enabled=settings.citation_lookup,
         )
@@ -351,6 +361,7 @@ def eval_retrieval(
                     "rerank_top_n": settings.rerank_top_n,
                     "rerank_candidates": settings.rerank_candidates,
                     "citation_lookup": settings.citation_lookup,
+                    "synonym_expansion": settings.synonym_expansion,
                 },
                 dataset=dataset.name,
             )
@@ -417,6 +428,7 @@ def eval_generation(
                         "rerank_candidates": settings.rerank_candidates,
                         "rerank_min_score": settings.rerank_min_score,
                         "citation_lookup": settings.citation_lookup,
+                        "synonym_expansion": settings.synonym_expansion,
                         "retrieval": RetrievalSettings(
                             collection=settings.qdrant_collection
                         ).model_dump(),

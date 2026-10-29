@@ -79,7 +79,7 @@ T1 repo + infra dev
 ### Phase 5: Chất lượng
 - [x] T14: Rerank + từ chối khi không đủ căn cứ
 - [x] T15: Tra thẳng Điều/Khoản/Điểm được trích dẫn
-- [ ] T16: Từ điển đồng nghĩa + truy vấn đa câu
+- [x] T16: Từ điển đồng nghĩa + truy vấn đa câu
 - [ ] T17: Query understanding (intent, legal_query, missing_facts)
 - [ ] T18: Prompt theo intent
 

@@ -1,0 +1,102 @@
+# Từ ngữ đời thường → thuật ngữ trong Luật Đất đai. Dùng để viết thêm một câu truy vấn
+# bằng thuật ngữ luật (tìm kiếm BM25 + dense). Bản đầu — cần người có chuyên môn duyệt.
+# Mỗi từ chỉ được xuất hiện ở một mục; cụm dài được ưu tiên khi khớp.
+entries:
+  # Giấy chứng nhận
+  - legal: giấy chứng nhận quyền sử dụng đất
+    terms: [sổ đỏ, sổ hồng, bìa đỏ, giấy đỏ, sổ đất, bằng khoán]
+  - legal: tách thửa đất
+    terms: [tách sổ, chia sổ, tách thửa]
+  - legal: hợp thửa đất
+    terms: [gộp sổ, nhập sổ, gộp thửa]
+  - legal: đăng ký biến động đất đai
+    terms: [sang tên sổ đỏ, sang tên sổ, sang tên đất]
+  - legal: giấy tờ về quyền sử dụng đất
+    terms: [giấy tờ tay, giấy viết tay]
+  # Loại đất
+  - legal: đất ở
+    terms: [đất thổ cư, thổ cư, đất thổ]
+  - legal: đất trồng lúa
+    terms: [đất ruộng, ruộng lúa, đất lúa]
+  - legal: đất trồng cây hàng năm
+    terms: [đất rẫy, đất nương rẫy, đất màu]
+  - legal: đất trồng cây lâu năm
+    terms: [đất vườn, vườn cây ăn trái]
+  - legal: đất nuôi trồng thủy sản
+    terms: [ao cá, đầm tôm, ao nuôi cá]
+  - legal: đất làm nghĩa trang, nghĩa địa
+    terms: [đất mộ, đất nghĩa địa, đất mồ mả]
+  - legal: đất cơ sở tôn giáo
+    terms: [đất chùa, đất nhà thờ]
+  - legal: đất tín ngưỡng
+    terms: [đất đình, đất miếu, đất đền]
+  - legal: đất được Nhà nước giao để quản lý
+    terms: [đất công]
+  - legal: đất nông nghiệp sử dụng vào mục đích công ích
+    terms: [đất công ích, đất 5%]
+  # Giao dịch
+  - legal: chuyển nhượng quyền sử dụng đất
+    terms: [mua bán đất, bán đất, mua đất, sang nhượng đất]
+  - legal: tặng cho quyền sử dụng đất
+    terms: [cho đất, cho tặng đất, cho con đất]
+  - legal: thừa kế quyền sử dụng đất
+    terms: [thừa kế đất, để lại đất, chia đất thừa kế]
+  - legal: thế chấp quyền sử dụng đất
+    terms: [cầm sổ đỏ, cắm sổ đỏ, thế chấp sổ đỏ, cầm đất]
+  - legal: cho thuê quyền sử dụng đất
+    terms: [cho thuê đất, thuê đất của dân]
+  - legal: góp vốn bằng quyền sử dụng đất
+    terms: [góp đất làm ăn, góp đất]
+  - legal: công chứng, chứng thực hợp đồng chuyển nhượng quyền sử dụng đất
+    terms: [công chứng mua bán đất, công chứng hợp đồng mua bán đất]
+  # Chuyển mục đích
+  - legal: chuyển mục đích sử dụng đất sang đất ở
+    terms: [chuyển lên thổ cư, lên thổ cư, chuyển thổ cư, lên đất ở]
+  - legal: chuyển mục đích sử dụng đất
+    terms: [chuyển đổi mục đích đất, đổi mục đích sử dụng đất]
+  - legal: sử dụng đất không đúng mục đích
+    terms: [xây nhà trái phép, xây nhà không phép, sai mục đích]
+  # Thu hồi, bồi thường
+  - legal: thu hồi đất
+    terms: [lấy đất, giải tỏa, nhà nước lấy đất, thu đất]
+  - legal: bồi thường
+    terms: [đền bù]
+  - legal: tiền bồi thường
+    terms: [tiền đền bù]
+  - legal: bồi thường, hỗ trợ, tái định cư
+    terms: [giải phóng mặt bằng, đền bù giải tỏa]
+  - legal: cưỡng chế thực hiện quyết định thu hồi đất
+    terms: [cưỡng chế đất, cưỡng chế giải tỏa]
+  - legal: không sử dụng đất
+    terms: [bỏ hoang, để hoang]
+  # Tranh chấp, vi phạm
+  - legal: lấn, chiếm đất
+    terms: [lấn đất, chiếm đất, lấn chiếm]
+  - legal: tranh chấp đất đai
+    terms: [tranh chấp ranh giới, cãi nhau về đất, giành đất]
+  - legal: giải quyết tranh chấp đất đai
+    terms: [kiện đất, kiện tụng đất đai]
+  - legal: quyền sử dụng hạn chế đối với thửa đất liền kề
+    terms: [lối đi chung, đi nhờ, xin lối đi, lối đi qua đất]
+  # Chủ thể, cơ quan
+  - legal: người Việt Nam định cư ở nước ngoài
+    terms: [việt kiều, người việt ở nước ngoài, người việt định cư ở nước ngoài]
+  - legal: người sử dụng đất
+    terms: [chủ đất]
+  - legal: Ủy ban nhân dân cấp xã
+    terms: [ủy ban xã, uỷ ban xã, ubnd xã, xã phường]
+  - legal: Ủy ban nhân dân cấp huyện
+    terms: [ủy ban huyện, uỷ ban huyện, ubnd huyện]
+  - legal: Ủy ban nhân dân cấp tỉnh
+    terms: [ủy ban tỉnh, uỷ ban tỉnh, ubnd tỉnh]
+  - legal: cơ quan quản lý đất đai
+    terms: [phòng tài nguyên, phòng địa chính, sở tài nguyên]
+  - legal: văn phòng đăng ký đất đai
+    terms: [văn phòng đất đai, văn phòng đăng ký đất]
+  # Tài chính
+  - legal: tiền sử dụng đất
+    terms: [thuế đất, tiền đất]
+  - legal: giá đất
+    terms: [giá đền bù đất, giá nhà nước]
+  - legal: hạn mức giao đất
+    terms: [hạn mức đất]

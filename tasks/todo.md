@@ -309,7 +309,9 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** S
 
-### - [ ] T16: Từ điển đồng nghĩa + truy vấn đa câu
+### - [x] T16: Từ điển đồng nghĩa + truy vấn đa câu
+
+> **Kết quả (hybrid, không rerank):** layperson R@10 0.811 → 0.844, MRR 0.697 → 0.753; professional không đổi; tổng R@10 0.902 → 0.920. **Nhiễu giữa các lần chạy cùng cấu hình:** MRR 0.809–0.843, nDCG 0.816–0.841 → chênh lệch < ~0.03 trên seed 29 câu coi là nhiễu. Từ điển `backend/resources/dat_dai_synonyms.yaml` (45 mục) **cần người duyệt**.
 
 **Description:** `resources/dat_dai_synonyms.yaml` (bản đầu ~50 mục, **người duyệt**); mở rộng truy vấn BM25 bằng luật; retrieval nhận nhiều câu (gốc + mở rộng) gộp RRF.
 
