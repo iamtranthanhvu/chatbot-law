@@ -66,7 +66,7 @@ T1 repo + infra dev
 **Checkpoint 2** — file 2013 nằm trong Postgres + Qdrant, số lượng khớp, nạp lại không trùng.
 
 ### Phase 3: Walking skeleton (CLI)
-- [ ] T9: Hybrid retrieval + `lawqa search`
+- [x] T9: Hybrid retrieval + `lawqa search`
 - [ ] T10: LLM client + kiểm tra trích dẫn
 - [ ] T11: `HybridRAGPipeline` + context packing + `lawqa ask`
 

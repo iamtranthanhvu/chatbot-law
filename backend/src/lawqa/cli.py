@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncIterator, Coroutine
 from contextlib import asynccontextmanager
+from datetime import date
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -19,6 +20,7 @@ from lawqa.ingestion.service import IndexingError, IngestService
 from lawqa.ingestion.store import DocumentExistsError, list_documents
 from lawqa.ingestion.tokens import HFTokenCounter
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
+from lawqa.retrieval.hybrid import HybridRetriever, RetrievalMode, RetrievalSettings
 
 app = typer.Typer(help="Law QA — công cụ vận hành (nạp văn bản, tìm kiếm, hỏi đáp, đánh giá).")
 documents_app = typer.Typer(help="Xem và quản lý văn bản đã nạp.")
@@ -56,6 +58,20 @@ async def _service() -> AsyncIterator[IngestService]:
         await encoder.aclose()
         await qdrant.close()
         await engine.dispose()
+
+
+@asynccontextmanager
+async def _retriever() -> AsyncIterator[HybridRetriever]:
+    settings = get_settings()
+    qdrant = AsyncQdrantClient(url=settings.qdrant_url)
+    encoder = EncoderClient(settings.model_server_url)
+    try:
+        yield HybridRetriever(
+            qdrant, encoder, RetrievalSettings(collection=settings.qdrant_collection)
+        )
+    finally:
+        await encoder.aclose()
+        await qdrant.close()
 
 
 def _run(coroutine: Coroutine[Any, Any, None]) -> None:
@@ -164,5 +180,33 @@ def documents_remove(
             typer.echo(f"Không có văn bản {so_hieu}.", err=True)
             raise typer.Exit(code=1)
         typer.echo(f"Đã xóa {so_hieu}.")
+
+    _run(run())
+
+
+@app.command()
+def search(
+    query: str,
+    mode: Annotated[str, typer.Option(help="hybrid | dense | bm25")] = "hybrid",
+    top_k: Annotated[int, typer.Option("--top-k", help="Số kết quả hiển thị")] = 10,
+    on: Annotated[
+        str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD (mặc định hôm nay)")
+    ] = None,
+) -> None:
+    """Tìm kiếm thử (không qua LLM) để kiểm tra retrieval."""
+    if mode not in ("hybrid", "dense", "bm25"):
+        raise typer.BadParameter("mode phải là hybrid, dense hoặc bm25")
+    reference_date = date.fromisoformat(on) if on else date.today()
+    retrieval_mode: RetrievalMode = mode  # type: ignore[assignment]
+
+    async def run() -> None:
+        async with _retriever() as retriever:
+            results = await retriever.search([query], reference_date, mode=retrieval_mode)
+        for rank, chunk in enumerate(results[:top_k], start=1):
+            snippet = chunk.text.replace("\n", " ")[:110]
+            typer.echo(
+                f"{rank:>2}. {chunk.score:.4f}  {chunk.path:<18} Điều {chunk.article_number}. "
+                f"{chunk.article_title[:60]}\n      {snippet}"
+            )
 
     _run(run())

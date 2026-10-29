@@ -166,7 +166,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 3: Walking skeleton (CLI)
 
-### - [ ] T9: Hybrid retrieval + `lawqa search`
+### - [x] T9: Hybrid retrieval + `lawqa search`
 
 **Description:** `HybridRetriever.search(texts, reference_date)`: prefetch dense + bm25 cho mỗi câu, fusion RRF, filter `valid_at`. Chế độ `dense-only` / `bm25-only` / `hybrid` qua config (phục vụ ablation). `lawqa search "<q>" [--mode]` in top-k với điểm.
 
