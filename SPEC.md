@@ -160,20 +160,21 @@ Lệnh khác: `lawqa documents list|show|remove <so_hieu>`, `lawqa reindex`.
 Kết quả: `intent` ∈ {`situation`, `lookup`, `topic_search`, `procedure`, `out_of_scope`}; `legal_query` (câu hỏi viết lại bằng thuật ngữ pháp lý); `citations` (Điều/Khoản/Điểm được nêu); `missing_facts` (với `situation`).
 
 - **Từ điển đồng nghĩa đất đai** (`resources/dat_dai_synonyms.yaml`, có review): sổ đỏ/sổ hồng → giấy chứng nhận quyền sử dụng đất; đất thổ cư → đất ở; đất ruộng → đất trồng lúa; xây nhà trên đất nông nghiệp → sử dụng đất không đúng mục đích… Áp dụng bằng luật để mở rộng truy vấn BM25.
-- Trích Điều/Khoản bằng **regex trước** ("Điều 100", "khoản 2 Điều 5", "điểm a khoản 1 Điều 100"); LLM chỉ bổ sung khi regex không thấy.
-- JSON lỗi / timeout → fallback `intent=topic_search`, `legal_query` = câu gốc (không chặn luồng trả lời).
-- `out_of_scope` → không chạy retrieval.
+- Trích Điều/Khoản/Điểm **chỉ bằng regex** ("Điều 100", "khoản 2 Điều 5", "điểm a khoản 1 Điều 100"). `lookup` do regex quyết định: có nêu Điều → `lookup`, không nêu → không phải `lookup`. Câu hỏi ngôi thứ nhất ("tôi", "nhà mình"…) bị gán `topic_search` → chuyển thành `situation`.
+- JSON lỗi / timeout → fallback: có nêu Điều → `lookup`, không → `topic_search`; `legal_query` = câu gốc (không chặn luồng trả lời).
+- `out_of_scope` **vẫn chạy retrieval để kiểm chứng**: nếu nguồn tốt nhất (rerank/lookup) có điểm ≥ `OUT_OF_SCOPE_OVERRIDE_SCORE` (0.5) thì bỏ nhãn, xử lý như `topic_search`; ngược lại → câu từ chối cố định, không gọi LLM sinh.
+- `legal_query` **không dùng để tìm kiếm theo mặc định** (`SEARCH_WITH_LEGAL_QUERY=false`): trên seed set, thêm nó làm Recall@10 nhóm `layperson` giảm (.889 → .833 với `hybrid+rerank`). Vẫn sinh ra để ghi log và làm ablation.
 - Tắt được bằng config để làm ablation.
 
 ### 3.4 Retrieval
 
 ```
-câu gốc ───────────┐
-legal_query ───────┼─▶ mỗi câu: dense (top 50) + BM25 (top 50) ─▶ RRF gộp (top 40)
-mở rộng đồng nghĩa ┘                                 (lọc hiệu lực tại hôm nay)
+câu gốc ───────────────┐
+legal_query (tuỳ chọn)─┼─▶ mỗi câu: dense (top 50) + BM25 (top 50) ─▶ RRF gộp (top 40)
+mở rộng đồng nghĩa ────┘                                 (lọc hiệu lực tại hôm nay)
 citations ─▶ tra thẳng chunk theo Điều/Khoản ─▶ chèn đầu danh sách
                                     ▼
-             rerank bge-reranker-v2-m3 (so với câu gốc + legal_query) → top 8
+             rerank bge-reranker-v2-m3 (điểm cao nhất trên các câu truy vấn) → top 8
                                     ▼
              điểm cao nhất < RERANK_MIN_SCORE → "không đủ căn cứ"
                                     ▼

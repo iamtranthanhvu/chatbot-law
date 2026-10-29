@@ -16,6 +16,7 @@ from lawqa.eval.generation_runner import run_generation_eval
 from lawqa.eval.judge import Judge, JudgeConfigError, check_judge_config
 from lawqa.eval.report import write_report
 from lawqa.eval.runner import run_retrieval_eval
+from lawqa.eval.understanding_eval import intent_accuracy
 from lawqa.generation.llm_client import LLMClient
 from lawqa.ingestion.chunker import chunk_document
 from lawqa.ingestion.indexer import QdrantIndexer
@@ -32,6 +33,7 @@ from lawqa.retrieval.citation_lookup import CitationAwareRetriever, CitationLook
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
 from lawqa.retrieval.hybrid import HybridRetriever, RetrievalSettings
 from lawqa.retrieval.rerank import Reranker, RerankingRetriever, RerankSettings
+from lawqa.understanding.classifier import QueryUnderstanding, UnderstandingRetriever
 from lawqa.understanding.synonyms import (
     DEFAULT_SYNONYMS,
     SynonymDictionary,
@@ -81,7 +83,20 @@ async def _service() -> AsyncIterator[IngestService]:
         await engine.dispose()
 
 
-_MODES = {f"{m}{r}" for m in ("dense", "bm25", "hybrid") for r in ("", "+rerank")}
+_MODES = {
+    f"{m}{r}{u}" for m in ("dense", "bm25", "hybrid") for r in ("", "+rerank") for u in ("", "+qu")
+}
+
+
+def _llm() -> LLMClient:
+    settings = get_settings()
+    return LLMClient(
+        settings.llm_base_url,
+        settings.llm_model,
+        settings.llm_api_key,
+        api_style=settings.llm_api_style,
+        num_ctx=settings.llm_num_ctx,
+    )
 
 
 @asynccontextmanager
@@ -121,13 +136,7 @@ async def _retriever() -> AsyncIterator[CitationAwareRetriever]:
 @asynccontextmanager
 async def _pipeline() -> AsyncIterator[HybridRAGPipeline]:
     settings = get_settings()
-    llm = LLMClient(
-        settings.llm_base_url,
-        settings.llm_model,
-        settings.llm_api_key,
-        api_style=settings.llm_api_style,
-        num_ctx=settings.llm_num_ctx,
-    )
+    llm = _llm()
     try:
         async with _retriever() as retriever:
             yield HybridRAGPipeline(
@@ -139,7 +148,10 @@ async def _pipeline() -> AsyncIterator[HybridRAGPipeline]:
                     max_answer_tokens=settings.max_answer_tokens,
                     max_chunks=settings.max_context_chunks,
                     min_rerank_score=settings.rerank_min_score,
+                    out_of_scope_override_score=settings.out_of_scope_override_score,
+                    search_with_legal_query=settings.search_with_legal_query,
                 ),
+                understanding=QueryUnderstanding(llm) if settings.query_understanding else None,
             )
     finally:
         await llm.aclose()
@@ -330,7 +342,7 @@ def eval_retrieval(
         Path, typer.Option("--set", exists=True, dir_okay=False, help="Tệp .jsonl")
     ] = _REPO / "eval" / "datasets" / "seed.jsonl",
     modes: Annotated[str, typer.Option(help="Các chế độ, cách nhau bởi dấu phẩy")] = (
-        "dense,bm25,hybrid,hybrid+rerank"
+        "dense,bm25,hybrid,hybrid+rerank,hybrid+rerank+qu"
     ),
     on: Annotated[str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD")] = None,
     out: Annotated[Path, typer.Option(help="Thư mục kết quả")] = _REPO / "eval" / "results",
@@ -346,10 +358,11 @@ def eval_retrieval(
     settings = get_settings()
 
     async def run() -> None:
+        llm = _llm()
         async with _retriever() as retriever:
             report = await run_retrieval_eval(
                 load_dataset(dataset),
-                retriever,
+                UnderstandingRetriever(retriever, QueryUnderstanding(llm)),
                 mode_list,
                 reference_date,
                 config={
@@ -362,9 +375,11 @@ def eval_retrieval(
                     "rerank_candidates": settings.rerank_candidates,
                     "citation_lookup": settings.citation_lookup,
                     "synonym_expansion": settings.synonym_expansion,
+                    "llm_model_for_qu": settings.llm_model,
                 },
                 dataset=dataset.name,
             )
+        await llm.aclose()
         json_path, md_path = write_report(report, out)
         for mode in report.modes:
             values = " · ".join(f"{k} {v:.3f}" for k, v in mode.overall.items())
@@ -429,6 +444,7 @@ def eval_generation(
                         "rerank_min_score": settings.rerank_min_score,
                         "citation_lookup": settings.citation_lookup,
                         "synonym_expansion": settings.synonym_expansion,
+                        "query_understanding": settings.query_understanding,
                         "retrieval": RetrievalSettings(
                             collection=settings.qdrant_collection
                         ).model_dump(),
@@ -457,3 +473,51 @@ def eval_compare(
     target.write_text(markdown, encoding="utf-8")
     typer.echo(markdown)
     typer.echo(f"Đã lưu: {target}")
+
+
+@eval_app.command("understanding")
+def eval_understanding(
+    dataset: Annotated[
+        Path, typer.Option("--set", exists=True, dir_okay=False, help="Tệp .jsonl")
+    ] = _REPO / "eval" / "datasets" / "seed.jsonl",
+    out: Annotated[Path, typer.Option(help="Thư mục kết quả")] = _REPO / "eval" / "results",
+) -> None:
+    """Độ chính xác phân loại intent của bước hiểu câu hỏi."""
+    settings = get_settings()
+
+    async def run() -> None:
+        items = load_dataset(dataset)
+        llm = _llm()
+        understanding = QueryUnderstanding(llm)
+        predicted: dict[str, str] = {}
+        fallbacks = 0
+        try:
+            for item in items:
+                result = await understanding.understand(item.question)
+                predicted[item.id] = result.intent
+                fallbacks += result.fallback
+        finally:
+            await llm.aclose()
+        report = intent_accuracy(items, predicted)
+        lines = [
+            f"# Phân loại intent — {dataset.name} · {settings.llm_model}",
+            "",
+            f"- Độ chính xác: **{report.accuracy:.3f}** ({len(items)} câu, fallback {fallbacks})",
+            "",
+            "| đúng \\ đoán | " + " | ".join(sorted({p for p in predicted.values()})) + " |",
+        ]
+        guesses = sorted(set(predicted.values()))
+        lines.append("|" + "---|" * (len(guesses) + 1))
+        for expected, row in report.confusion.items():
+            lines.append(
+                f"| {expected} | " + " | ".join(str(row.get(g, 0)) for g in guesses) + " |"
+            )
+        lines += ["", "## Đoán sai", ""]
+        lines += [f"- {i} — {q} (đúng: {e}, đoán: {p})" for i, q, e, p in report.mistakes] or ["—"]
+        out.mkdir(parents=True, exist_ok=True)
+        target = out / f"understanding-{datetime.now(UTC):%Y%m%d-%H%M%S}.md"
+        target.write_text("\n".join(lines), encoding="utf-8")
+        typer.echo("\n".join(lines))
+        typer.echo(f"Đã lưu: {target}")
+
+    _run(run())

@@ -13,6 +13,7 @@ from lawqa.pipelines.base import (
 )
 from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings
 from lawqa.retrieval.types import RetrievedChunk
+from lawqa.understanding.classifier import Understanding
 from tests.unit.pipelines.conftest import WordCounter, make_chunk
 
 QUERY = Query(text="Điều kiện chuyển nhượng quyền sử dụng đất?", reference_date=date(2026, 10, 29))
@@ -197,3 +198,96 @@ async def test_threshold_does_not_apply_to_scores_from_other_stages() -> None:
     events = await _events(pipeline)
 
     assert isinstance(events[-1], DoneEvent) and events[-1].citations == [1]
+
+
+class FakeUnderstanding:
+    def __init__(self, result: Understanding) -> None:
+        self.result = result
+        self.questions: list[str] = []
+
+    async def understand(self, question: str) -> Understanding:
+        self.questions.append(question)
+        return self.result
+
+
+def _with_understanding(
+    retriever: FakeRetriever,
+    llm: FakeLLM,
+    understanding: FakeUnderstanding,
+    settings: PipelineSettings | None = None,
+) -> HybridRAGPipeline:
+    return HybridRAGPipeline(
+        retriever=retriever,
+        llm=llm,
+        counter=WordCounter(),
+        settings=settings or PipelineSettings(),
+        understanding=understanding,
+    )
+
+
+async def test_out_of_scope_questions_are_refused_without_retrieval_or_generation() -> None:
+    retriever, llm = FakeRetriever(CHUNKS), FakeLLM(["không được gọi"])
+    understanding = FakeUnderstanding(Understanding(intent="out_of_scope", legal_query="x"))
+
+    events = await _events(_with_understanding(retriever, llm, understanding))
+
+    assert [type(e) for e in events] == [MetaEvent, SourcesEvent, DoneEvent]
+    assert isinstance(events[0], MetaEvent) and events[0].intent == "out_of_scope"
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and "chỉ hỗ trợ" in done.answer
+    assert llm.messages == []  # retrieval only verifies the claim; nothing is generated
+
+
+SITUATION = Understanding(
+    intent="situation",
+    legal_query="Điều kiện chuyển nhượng quyền sử dụng đất",
+    missing_facts=["Đất có Giấy chứng nhận chưa"],
+)
+
+
+async def test_retrieval_searches_with_the_question_only_by_default() -> None:
+    retriever = FakeRetriever(CHUNKS)
+    understanding = FakeUnderstanding(SITUATION)
+
+    events = await _events(_with_understanding(retriever, FakeLLM(["ok [1]"]), understanding))
+
+    assert retriever.calls[0][0] == [QUERY.text]
+    assert isinstance(events[0], MetaEvent) and events[0].intent == "situation"
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and done.missing_facts == ["Đất có Giấy chứng nhận chưa"]
+
+
+async def test_retrieval_can_also_search_with_the_legal_rewrite() -> None:
+    retriever = FakeRetriever(CHUNKS)
+    understanding = FakeUnderstanding(SITUATION)
+    settings = PipelineSettings(search_with_legal_query=True)
+
+    await _events(_with_understanding(retriever, FakeLLM(["ok [1]"]), understanding, settings))
+
+    assert retriever.calls[0][0] == [QUERY.text, "Điều kiện chuyển nhượng quyền sử dụng đất"]
+
+
+async def test_out_of_scope_claim_is_overridden_when_retrieval_finds_a_strong_source() -> None:
+    strong = [
+        make_chunk("82", "không bồi thường", score=0.99).model_copy(update={"stage": "rerank"})
+    ]
+    retriever, llm = FakeRetriever(strong), FakeLLM(["Không bồi thường khi [1]."])
+    understanding = FakeUnderstanding(Understanding(intent="out_of_scope", legal_query="x"))
+
+    events = await _events(_with_understanding(retriever, llm, understanding))
+
+    assert isinstance(events[0], MetaEvent) and events[0].intent == "topic_search"
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and done.citations == [1]
+
+
+async def test_out_of_scope_claim_with_weak_sources_is_refused_without_generation() -> None:
+    weak = [make_chunk("64", "x", score=0.003).model_copy(update={"stage": "rerank"})]
+    retriever, llm = FakeRetriever(weak), FakeLLM(["không được gọi"])
+    understanding = FakeUnderstanding(Understanding(intent="out_of_scope", legal_query="x"))
+
+    events = await _events(_with_understanding(retriever, llm, understanding))
+
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and "chỉ hỗ trợ" in done.answer
+    assert llm.messages == []

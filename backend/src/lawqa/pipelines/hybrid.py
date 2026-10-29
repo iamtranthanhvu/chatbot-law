@@ -28,10 +28,14 @@ from lawqa.pipelines.base import (
 from lawqa.retrieval.context_packer import ContextSource, pack_context
 from lawqa.retrieval.encoder_client import EncoderError
 from lawqa.retrieval.types import RetrievedChunk
+from lawqa.understanding.classifier import Understanding
 
 logger = logging.getLogger("lawqa.pipeline")
 
 NO_BASIS_ANSWER = "Không tìm thấy căn cứ trong dữ liệu hiện có để trả lời câu hỏi này."
+OUT_OF_SCOPE_ANSWER = (
+    "Hệ thống hiện chỉ hỗ trợ hỏi đáp về pháp luật đất đai. Câu hỏi của bạn nằm ngoài phạm vi này."
+)
 
 
 class Retriever(Protocol):
@@ -51,12 +55,20 @@ class StreamingLLM(Protocol):
     ) -> AsyncIterator[str]: ...
 
 
+class Understander(Protocol):
+    async def understand(self, question: str) -> Understanding: ...
+
+
 class PipelineSettings(BaseModel):
     context_max_tokens: int = 6000
     max_answer_tokens: int = 1024
     max_chunks: int = 8
     # Reranker probability below which the best source is not considered a legal basis.
     min_rerank_score: float = 0.0
+    # An "out of scope" verdict is overruled when retrieval still finds a source this strong.
+    out_of_scope_override_score: float = 0.5
+    # Off by default: on the seed set the rewrite lowered layperson recall@10 under rerank.
+    search_with_legal_query: bool = False
 
 
 class HybridRAGPipeline:
@@ -69,7 +81,9 @@ class HybridRAGPipeline:
         llm: StreamingLLM,
         counter: TokenCounter,
         settings: PipelineSettings,
+        understanding: Understander | None = None,
     ) -> None:
+        self._understanding = understanding
         self._retriever = retriever
         self._llm = llm
         self._counter = counter
@@ -78,12 +92,37 @@ class HybridRAGPipeline:
     async def retrieve(self, query: Query) -> list[RetrievedChunk]:
         return await self._retriever.search([query.text], query.reference_date)
 
+    async def _understand(self, query: Query) -> Understanding | None:
+        return await self._understanding.understand(query.text) if self._understanding else None
+
     async def answer(self, query: Query) -> AsyncIterator[PipelineEvent]:
         started = time.perf_counter()
-        yield MetaEvent(query_id=query.query_id, pipeline=self.name)
+        understanding = await self._understand(query)
+        understood_at = time.perf_counter()
+        intent = understanding.intent if understanding else None
+        missing_facts = understanding.missing_facts if understanding else []
+        texts = [query.text]
+        if (
+            understanding
+            and self._settings.search_with_legal_query
+            and understanding.legal_query not in texts
+        ):
+            texts.append(understanding.legal_query)
+        meta_sent = False
         try:
-            chunks = await self.retrieve(query)
+            chunks = await self._retriever.search(texts, query.reference_date)
             retrieved_at = time.perf_counter()
+            if intent == "out_of_scope":
+                # The classifier can be wrong about scope; trust it only when retrieval agrees.
+                if not self._strong_source(chunks):
+                    yield MetaEvent(query_id=query.query_id, pipeline=self.name, intent=intent)
+                    yield SourcesEvent(sources=[])
+                    yield DoneEvent(answer=OUT_OF_SCOPE_ANSWER, citations=[], model=None)
+                    return
+                logger.info("pipeline.out_of_scope_overruled", extra={"query_id": query.query_id})
+                intent = "topic_search"
+            yield MetaEvent(query_id=query.query_id, pipeline=self.name, intent=intent)
+            meta_sent = True
             best = sorted(chunks, key=lambda c: c.score, reverse=True)[: self._settings.max_chunks]
             if (
                 best
@@ -117,16 +156,28 @@ class HybridRAGPipeline:
                 answer=check.text,
                 citations=check.cited,
                 invalid_citations=check.invalid,
+                missing_facts=missing_facts,
                 model=self._llm.model,
                 latency_ms={
-                    "retrieve": _ms(started, retrieved_at),
+                    "understand": _ms(started, understood_at),
+                    "retrieve": _ms(understood_at, retrieved_at),
                     "ttft": _ms(started, first_token_at or finished),
                     "total": _ms(started, finished),
                 },
             )
         except (EncoderError, LLMError) as error:
             logger.exception("pipeline.failed", extra={"query_id": query.query_id})
+            if not meta_sent:
+                yield MetaEvent(query_id=query.query_id, pipeline=self.name, intent=intent)
             yield _error_event(error)
+
+    def _strong_source(self, chunks: list[RetrievedChunk]) -> bool:
+        best = max(chunks, key=lambda c: c.score, default=None)
+        return (
+            best is not None
+            and best.stage in ("rerank", "lookup")
+            and best.score >= self._settings.out_of_scope_override_score
+        )
 
 
 def _source(source: ContextSource) -> Source:

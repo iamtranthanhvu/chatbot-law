@@ -328,7 +328,15 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** S
 
-### - [ ] T17: Query understanding
+### - [x] T17: Query understanding
+
+> **Kết quả:** phân loại intent đúng **0.871** (27/31, `lawqa eval understanding`) sau khi thêm luật `lookup` theo regex và luật ngôi thứ nhất → `situation`; có thể khớp quá sát seed set, cần kiểm lại trên golden set. `out_of_scope` được kiểm chứng bằng retrieval (o01, o02 vẫn từ chối; s11 không còn bị từ chối nhầm).
+> Retrieval với `legal_query` (seed, 29 câu):
+> | chế độ | R@5 | R@10 | MRR@10 | layperson R@10 |
+> |---|---|---|---|---|
+> | hybrid+rerank | 0.862 | 0.943 | 0.878 | 0.889 |
+> | hybrid+rerank+qu | 0.897 | 0.914 | 0.847 | 0.833 |
+> Tiêu chí "Recall@10 layperson tăng" **không đạt** → `SEARCH_WITH_LEGAL_QUERY=false` mặc định; understanding chỉ dùng cho intent, `missing_facts`, kiểm chứng ngoài phạm vi. Đưa ra review ở Checkpoint 4.
 
 **Description:** Một lần gọi LLM với structured output → `intent`, `legal_query`, `citations`, `missing_facts`; validate Pydantic; timeout/JSON lỗi → fallback `topic_search` + câu gốc; `out_of_scope` → câu từ chối cố định, bỏ qua retrieval. Retrieval dùng câu gốc + `legal_query` + mở rộng đồng nghĩa. Thêm chế độ ablation.
 

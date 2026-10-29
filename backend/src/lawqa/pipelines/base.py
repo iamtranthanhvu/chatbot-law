@@ -51,6 +51,7 @@ class DoneEvent(BaseModel):
     answer: str
     citations: list[int]
     invalid_citations: list[int] = Field(default_factory=list)
+    missing_facts: list[str] = Field(default_factory=list)
     model: str | None = None
     latency_ms: dict[str, int] = Field(default_factory=dict)
     disclaimer: str = DISCLAIMER

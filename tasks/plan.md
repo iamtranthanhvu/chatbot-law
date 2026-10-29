@@ -80,7 +80,7 @@ T1 repo + infra dev
 - [x] T14: Rerank + từ chối khi không đủ căn cứ
 - [x] T15: Tra thẳng Điều/Khoản/Điểm được trích dẫn
 - [x] T16: Từ điển đồng nghĩa + truy vấn đa câu
-- [ ] T17: Query understanding (intent, legal_query, missing_facts)
+- [x] T17: Query understanding (intent, legal_query, missing_facts)
 - [ ] T18: Prompt theo intent
 
 **Checkpoint 4** — báo cáo baseline: `hybrid+rerank` > `dense-only`, `bm25-only`; query understanding cải thiện nhóm `layperson`.
