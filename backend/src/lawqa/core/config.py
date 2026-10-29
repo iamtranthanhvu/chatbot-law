@@ -41,6 +41,11 @@ class Settings(IngestionSettings, DatabaseSettings):
     judge_api_key: str = "not-needed"
     judge_api_style: Literal["openai", "ollama"] = "openai"
 
+    retrieval_mode: str = "hybrid+rerank"
+    rerank_top_n: int = Field(default=8, gt=0)
+    rerank_candidates: int = Field(default=40, gt=0)
+    rerank_min_score: float = Field(default=0.005, ge=0, le=1)
+
     context_max_tokens: int = Field(default=6000, gt=0)
     max_answer_tokens: int = Field(default=1024, gt=0)
     max_context_chunks: int = Field(default=8, gt=0)

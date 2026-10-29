@@ -273,7 +273,9 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 5: Chất lượng
 
-### - [ ] T14: Rerank + từ chối khi không đủ căn cứ
+### - [x] T14: Rerank + từ chối khi không đủ căn cứ
+
+> **Kết quả (seed, 40 ứng viên):** hybrid+rerank R@5 0.851 · R@10 0.902 · MRR 0.845 · nDCG 0.839 (hybrid: 0.822/0.833/0.740/0.752). Ngưỡng `RERANK_MIN_SCORE=0.005` (ngoài phạm vi 0.0009–0.0073, câu hợp lệ thấp nhất 0.0062). Trên M1 rerank ~1s/đoạn → 36–60s/câu với 40 ứng viên; giảm `RERANK_CANDIDATES` khi dev nếu cần.
 
 **Description:** Client `/rerank`; rerank top-40 → top-8; điểm cao nhất < `RERANK_MIN_SCORE` → event "không đủ căn cứ" (không gọi LLM). Thêm chế độ ablation `hybrid+rerank`.
 

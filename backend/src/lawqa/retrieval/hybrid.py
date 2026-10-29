@@ -33,11 +33,13 @@ class HybridRetriever:
         self._settings = settings
 
     async def search(
-        self, texts: list[str], reference_date: date, *, mode: RetrievalMode | None = None
+        self, texts: list[str], reference_date: date, *, mode: str | None = None
     ) -> list[RetrievedChunk]:
         """Search every query text with the chosen signals and fuse all rankings with RRF."""
         s = self._settings
         mode = mode or s.mode
+        if mode not in ("dense", "bm25", "hybrid"):
+            raise ValueError(f"Chế độ tìm kiếm không hợp lệ: {mode}")
         query_filter = valid_at(reference_date)
         prefetch: list[models.Prefetch] = []
 

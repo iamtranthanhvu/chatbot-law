@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Any, Protocol
 
 import httpx
 
@@ -16,7 +16,7 @@ class DenseEncoder(Protocol):
 
 
 class EncoderClient:
-    """HTTP client for the model-server (embedding; rerank is added with the reranker)."""
+    """HTTP client for the model-server (dense embeddings and cross-encoder reranking)."""
 
     def __init__(
         self,
@@ -39,7 +39,15 @@ class EncoderClient:
             vectors.extend(body["vectors"])
         return vectors
 
-    async def _post(self, path: str, payload: dict[str, object]) -> dict[str, list[list[float]]]:
+    async def rerank(self, query: str, passages: list[str]) -> list[float]:
+        scores: list[float] = []
+        for start in range(0, len(passages), self._batch_size):
+            batch = passages[start : start + self._batch_size]
+            body = await self._post("/rerank", {"query": query, "passages": batch})
+            scores.extend(body["scores"])
+        return scores
+
+    async def _post(self, path: str, payload: dict[str, object]) -> dict[str, Any]:
         try:
             response = await self._client.post(path, json=payload)
         except httpx.TransportError as error:
@@ -51,7 +59,7 @@ class EncoderClient:
             raise EncoderError(
                 f"model-server trả lỗi {response.status_code} cho {path}: {response.text[:200]}"
             )
-        result: dict[str, list[list[float]]] = response.json()
+        result: dict[str, Any] = response.json()
         return result
 
     async def aclose(self) -> None:

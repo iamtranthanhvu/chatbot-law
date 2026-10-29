@@ -52,3 +52,20 @@ async def test_error_status_is_reported() -> None:
 
     with pytest.raises(EncoderError, match="422"):
         await client.embed_dense(["đất"])
+
+
+async def test_rerank_scores_passages_in_batches_and_keeps_order() -> None:
+    calls: list[int] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        calls.append(len(body["passages"]))
+        scores = [float(p.split()[-1]) / 100 for p in body["passages"]]
+        return httpx.Response(200, json={"scores": scores, "model": "fake"})
+
+    client = EncoderClient("http://ms", batch_size=32, transport=httpx.MockTransport(handler))
+
+    scores = await client.rerank("thu hồi đất", [f"đoạn {i}" for i in range(40)])
+
+    assert calls == [32, 8]
+    assert scores == [i / 100 for i in range(40)]

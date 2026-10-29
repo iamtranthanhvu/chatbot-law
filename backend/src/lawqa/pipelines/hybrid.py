@@ -55,6 +55,8 @@ class PipelineSettings(BaseModel):
     context_max_tokens: int = 6000
     max_answer_tokens: int = 1024
     max_chunks: int = 8
+    # Reranker probability below which the best source is not considered a legal basis.
+    min_rerank_score: float = 0.0
 
 
 class HybridRAGPipeline:
@@ -83,6 +85,16 @@ class HybridRAGPipeline:
             chunks = await self.retrieve(query)
             retrieved_at = time.perf_counter()
             best = sorted(chunks, key=lambda c: c.score, reverse=True)[: self._settings.max_chunks]
+            if (
+                best
+                and best[0].stage == "rerank"
+                and best[0].score < self._settings.min_rerank_score
+            ):
+                logger.info(
+                    "pipeline.no_basis",
+                    extra={"query_id": query.query_id, "best_rerank_score": best[0].score},
+                )
+                best = []
             sources = pack_context(best, self._counter, self._settings.context_max_tokens)
             yield SourcesEvent(sources=[_source(s) for s in sources])
 

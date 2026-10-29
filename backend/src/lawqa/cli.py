@@ -29,7 +29,8 @@ from lawqa.ingestion.tokens import HFTokenCounter
 from lawqa.pipelines.base import DoneEvent, ErrorEvent, Query, SourcesEvent, TokenEvent
 from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
-from lawqa.retrieval.hybrid import HybridRetriever, RetrievalMode, RetrievalSettings
+from lawqa.retrieval.hybrid import HybridRetriever, RetrievalSettings
+from lawqa.retrieval.rerank import Reranker, RerankingRetriever, RerankSettings
 
 app = typer.Typer(help="Law QA — công cụ vận hành (nạp văn bản, tìm kiếm, hỏi đáp, đánh giá).")
 documents_app = typer.Typer(help="Xem và quản lý văn bản đã nạp.")
@@ -74,14 +75,25 @@ async def _service() -> AsyncIterator[IngestService]:
         await engine.dispose()
 
 
+_MODES = {f"{m}{r}" for m in ("dense", "bm25", "hybrid") for r in ("", "+rerank")}
+
+
 @asynccontextmanager
-async def _retriever() -> AsyncIterator[HybridRetriever]:
+async def _retriever() -> AsyncIterator[RerankingRetriever]:
     settings = get_settings()
     qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     encoder = EncoderClient(settings.model_server_url)
     try:
-        yield HybridRetriever(
+        first_stage = HybridRetriever(
             qdrant, encoder, RetrievalSettings(collection=settings.qdrant_collection)
+        )
+        yield RerankingRetriever(
+            first_stage,
+            Reranker(
+                encoder,
+                RerankSettings(top_n=settings.rerank_top_n, candidates=settings.rerank_candidates),
+            ),
+            default_mode=settings.retrieval_mode,
         )
     finally:
         await encoder.aclose()
@@ -108,6 +120,7 @@ async def _pipeline() -> AsyncIterator[HybridRAGPipeline]:
                     context_max_tokens=settings.context_max_tokens,
                     max_answer_tokens=settings.max_answer_tokens,
                     max_chunks=settings.max_context_chunks,
+                    min_rerank_score=settings.rerank_min_score,
                 ),
             )
     finally:
@@ -227,21 +240,22 @@ def documents_remove(
 @app.command()
 def search(
     query: str,
-    mode: Annotated[str, typer.Option(help="hybrid | dense | bm25")] = "hybrid",
+    mode: Annotated[
+        str, typer.Option(help="dense | bm25 | hybrid, có thể thêm +rerank")
+    ] = "hybrid+rerank",
     top_k: Annotated[int, typer.Option("--top-k", help="Số kết quả hiển thị")] = 10,
     on: Annotated[
         str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD (mặc định hôm nay)")
     ] = None,
 ) -> None:
     """Tìm kiếm thử (không qua LLM) để kiểm tra retrieval."""
-    if mode not in ("hybrid", "dense", "bm25"):
-        raise typer.BadParameter("mode phải là hybrid, dense hoặc bm25")
+    if mode not in _MODES:
+        raise typer.BadParameter(f"mode phải là một trong {sorted(_MODES)}")
     reference_date = date.fromisoformat(on) if on else date.today()
-    retrieval_mode: RetrievalMode = mode  # type: ignore[assignment]
 
     async def run() -> None:
         async with _retriever() as retriever:
-            results = await retriever.search([query], reference_date, mode=retrieval_mode)
+            results = await retriever.search([query], reference_date, mode=mode)
         for rank, chunk in enumerate(results[:top_k], start=1):
             snippet = chunk.text.replace("\n", " ")[:110]
             typer.echo(
@@ -298,7 +312,7 @@ def eval_retrieval(
         Path, typer.Option("--set", exists=True, dir_okay=False, help="Tệp .jsonl")
     ] = _REPO / "eval" / "datasets" / "seed.jsonl",
     modes: Annotated[str, typer.Option(help="Các chế độ, cách nhau bởi dấu phẩy")] = (
-        "dense,bm25,hybrid"
+        "dense,bm25,hybrid,hybrid+rerank"
     ),
     on: Annotated[str | None, typer.Option("--on", help="Ngày tham chiếu YYYY-MM-DD")] = None,
     out: Annotated[Path, typer.Option(help="Thư mục kết quả")] = _REPO / "eval" / "results",
@@ -308,8 +322,8 @@ def eval_retrieval(
 ) -> None:
     """Đo Recall@5/10, MRR@10, nDCG@10 cho từng chế độ tìm kiếm (ablation)."""
     mode_list = [mode.strip() for mode in modes.split(",") if mode.strip()]
-    if not set(mode_list) <= {"dense", "bm25", "hybrid"}:
-        raise typer.BadParameter("modes chỉ gồm dense, bm25, hybrid")
+    if not set(mode_list) <= _MODES:
+        raise typer.BadParameter(f"modes chỉ gồm {sorted(_MODES)}")
     reference_date = date.fromisoformat(on) if on else date.today()
     settings = get_settings()
 
@@ -326,6 +340,8 @@ def eval_retrieval(
                     ).model_dump(),
                     "chunk_max_tokens": settings.chunk_max_tokens,
                     "tokenizer": settings.tokenizer_name,
+                    "rerank_top_n": settings.rerank_top_n,
+                    "rerank_candidates": settings.rerank_candidates,
                 },
                 dataset=dataset.name,
             )
@@ -387,6 +403,10 @@ def eval_generation(
                         "context_max_tokens": settings.context_max_tokens,
                         "max_context_chunks": settings.max_context_chunks,
                         "max_answer_tokens": settings.max_answer_tokens,
+                        "retrieval_mode": settings.retrieval_mode,
+                        "rerank_top_n": settings.rerank_top_n,
+                        "rerank_candidates": settings.rerank_candidates,
+                        "rerank_min_score": settings.rerank_min_score,
                         "retrieval": RetrievalSettings(
                             collection=settings.qdrant_collection
                         ).model_dump(),

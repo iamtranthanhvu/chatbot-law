@@ -77,7 +77,7 @@ T1 repo + infra dev
 - [x] T13: Metric generation (LLM judge) + `eval-compare`
 
 ### Phase 5: Chất lượng
-- [ ] T14: Rerank + từ chối khi không đủ căn cứ
+- [x] T14: Rerank + từ chối khi không đủ căn cứ
 - [ ] T15: Tra thẳng Điều/Khoản/Điểm được trích dẫn
 - [ ] T16: Từ điển đồng nghĩa + truy vấn đa câu
 - [ ] T17: Query understanding (intent, legal_query, missing_facts)

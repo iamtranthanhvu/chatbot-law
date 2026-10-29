@@ -161,3 +161,39 @@ async def test_prompt_demands_bracket_citations_and_forbids_outside_documents() 
     assert "[2]." in system["content"]  # worked example of a cited sentence
     assert "không có trong NGUỒN" in system["content"]
     assert user["content"].rstrip().endswith("mỗi ý phải kèm số nguồn [n].")
+
+
+async def test_weak_best_rerank_score_refuses_without_calling_the_llm() -> None:
+    weak = [
+        make_chunk("64", "thu hồi đất", score=0.02).model_copy(update={"stage": "rerank"}),
+        make_chunk("77", "bồi thường", score=0.01).model_copy(update={"stage": "rerank"}),
+    ]
+    llm = FakeLLM(["không được gọi"])
+    pipeline = HybridRAGPipeline(
+        retriever=FakeRetriever(weak),
+        llm=llm,
+        counter=WordCounter(),
+        settings=PipelineSettings(min_rerank_score=0.1),
+    )
+
+    events = await _events(pipeline)
+
+    assert [type(e) for e in events] == [MetaEvent, SourcesEvent, DoneEvent]
+    assert isinstance(events[1], SourcesEvent) and events[1].sources == []
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and "Không tìm thấy căn cứ" in done.answer
+    assert llm.messages == []
+
+
+async def test_threshold_does_not_apply_to_scores_from_other_stages() -> None:
+    llm = FakeLLM(["ok [1]"])
+    pipeline = HybridRAGPipeline(
+        retriever=FakeRetriever([make_chunk("1", "x", score=0.01)]),  # RRF scores are tiny
+        llm=llm,
+        counter=WordCounter(),
+        settings=PipelineSettings(min_rerank_score=0.1),
+    )
+
+    events = await _events(pipeline)
+
+    assert isinstance(events[-1], DoneEvent) and events[-1].citations == [1]
