@@ -29,7 +29,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 1: Parse văn bản
 
-### - [ ] T2: Đọc DOCX, chuẩn hóa, metadata
+### - [x] T2: Đọc DOCX, chuẩn hóa, metadata
 
 **Description:** `docx_reader` trả danh sách đoạn (kể cả trong bảng) đúng thứ tự; `normalize` NFC, gộp khoảng trắng, tách phần đầu (quốc hiệu, số hiệu, tên) và phần cuối (thông qua ngày…, chữ ký); `metadata` trích số hiệu, loại, tên, ngày thông qua, ngày hiệu lực (từ Điều "Hiệu lực thi hành").
 

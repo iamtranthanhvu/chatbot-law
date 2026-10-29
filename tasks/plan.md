@@ -51,7 +51,7 @@ T1 repo + infra dev
 - [x] T1: Repo skeleton, tooling, infra dev (Postgres/Qdrant/Redis)
 
 ### Phase 1: Parse văn bản (rủi ro cao nhất)
-- [ ] T2: Đọc DOCX, chuẩn hóa, metadata
+- [x] T2: Đọc DOCX, chuẩn hóa, metadata
 - [ ] T3: Parser cấu trúc + kiểm tra toàn vẹn + `lawqa ingest --dry-run`
 - [ ] T4: Chunker theo cấu trúc
 
