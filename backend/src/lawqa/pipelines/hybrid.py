@@ -144,7 +144,8 @@ class HybridRAGPipeline:
             pieces: list[str] = []
             first_token_at: float | None = None
             async for delta in self._llm.stream(
-                build_messages(query.text, sources), max_tokens=self._settings.max_answer_tokens
+                build_messages(query.text, sources, intent=intent, missing_facts=missing_facts),
+                max_tokens=self._settings.max_answer_tokens,
             ):
                 first_token_at = first_token_at or time.perf_counter()
                 pieces.append(delta)

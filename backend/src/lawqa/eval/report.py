@@ -11,6 +11,7 @@ GENERATION_METRICS = (
     "citation_precision",
     "citation_recall",
     "invalid_citation_rate",
+    "structure_ok",
     "refusal_accuracy",
     "false_refusal_rate",
     "error_rate",
@@ -93,11 +94,12 @@ def render_generation_markdown(report: GenerationReport) -> str:
     ]
     for title, groups in (("Theo persona", report.by_persona), ("Theo intent", report.by_intent)):
         lines += ["", f"## {title}", ""]
-        lines += _table(["nhóm"], list(groups.items()), GENERATION_METRICS[:9])
+        lines += _table(["nhóm"], list(groups.items()), GENERATION_METRICS[:10])
 
     lines += ["", "## Từng câu", ""]
     for result in report.per_item.values():
         status = result.error or ("từ chối" if result.refused else "trả lời")
+        shape = {True: " · đúng khung", False: " · sai khung", None: ""}[result.structure_ok]
         scores = (
             f"F {result.scores.faithfulness:.2f} · C {result.scores.correctness:.2f}"
             f" · R {result.scores.clarity:.2f}"
@@ -105,8 +107,9 @@ def render_generation_markdown(report: GenerationReport) -> str:
             else (result.judge_error or "chưa chấm")
         )
         lines += [
-            f"### {result.id} ({result.persona}, {result.intent}) — {result.question}",
-            f"*{status}* · {scores} · trích {', '.join(result.cited_articles) or '—'}"
+            f"### {result.id} ({result.persona}, {result.intent}"
+            f" → {result.predicted_intent or '—'}) — {result.question}",
+            f"*{status}*{shape} · {scores} · trích {', '.join(result.cited_articles) or '—'}"
             f" · trích sai {result.invalid_citations or '—'} · {result.latency_ms}",
             "",
             result.answer.strip() or "_(không có câu trả lời)_",

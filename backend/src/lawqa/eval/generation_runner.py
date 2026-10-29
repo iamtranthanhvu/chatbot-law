@@ -8,9 +8,22 @@ from pydantic import BaseModel, Field
 
 from lawqa.eval.dataset import EvalItem
 from lawqa.eval.judge import Judge, JudgeScores
-from lawqa.eval.metrics.generation import citation_scores, is_refusal, percentile
+from lawqa.eval.metrics.generation import (
+    answer_structure,
+    citation_scores,
+    is_refusal,
+    percentile,
+)
 from lawqa.eval.runner import config_hash, git_sha
-from lawqa.pipelines.base import DoneEvent, ErrorEvent, PipelineEvent, Query, Source, SourcesEvent
+from lawqa.pipelines.base import (
+    DoneEvent,
+    ErrorEvent,
+    MetaEvent,
+    PipelineEvent,
+    Query,
+    Source,
+    SourcesEvent,
+)
 
 
 class AnsweringPipeline(Protocol):
@@ -25,6 +38,7 @@ class ItemResult(BaseModel):
     intent: str
     question: str
     in_scope: bool
+    predicted_intent: str | None = None
     answer: str = ""
     citations: list[int] = Field(default_factory=list)
     invalid_citations: list[int] = Field(default_factory=list)
@@ -34,6 +48,7 @@ class ItemResult(BaseModel):
     latency_ms: dict[str, int] = Field(default_factory=dict)
     citation_precision: float | None = None
     citation_recall: float | None = None
+    structure_ok: bool | None = None
     scores: JudgeScores | None = None
     judge_error: str | None = None
 
@@ -108,7 +123,9 @@ async def _answer(
     )
     sources: list[Source] = []
     async for event in pipeline.answer(Query(text=item.question, reference_date=reference_date)):
-        if isinstance(event, SourcesEvent):
+        if isinstance(event, MetaEvent):
+            result.predicted_intent = event.intent
+        elif isinstance(event, SourcesEvent):
             sources = event.sources
         elif isinstance(event, ErrorEvent):
             result.error = event.code
@@ -123,6 +140,10 @@ async def _answer(
         scores = citation_scores(result.citations, sources, item.reference_citations)
         result.citation_precision = scores["citation_precision"]
         result.citation_recall = scores["citation_recall"]
+        if not result.refused:
+            result.structure_ok = answer_structure(
+                result.predicted_intent, result.answer, sources, item.reference_citations
+            )
     return result, sources
 
 
@@ -144,6 +165,8 @@ def _aggregate(results: list[ItemResult]) -> dict[str, float]:
     mean("citation_precision", in_scope, lambda r: r.citation_precision or 0.0)
     mean("citation_recall", in_scope, lambda r: r.citation_recall or 0.0)
     mean("invalid_citation_rate", answered, lambda r: float(bool(r.invalid_citations)))
+    shaped = [r for r in in_scope if r.structure_ok is not None]
+    mean("structure_ok", shaped, lambda r: float(bool(r.structure_ok)))
     mean("faithfulness", judged, lambda r: r.scores.faithfulness if r.scores else 0.0)
     mean("correctness", judged, lambda r: r.scores.correctness if r.scores else 0.0)
     laypeople = [r for r in judged if r.persona == "layperson"]

@@ -7,10 +7,15 @@ from typing import Any
 import pytest
 
 from lawqa.eval.compare import compare_reports
-from lawqa.eval.dataset import EvalItem
+from lawqa.eval.dataset import Citation, EvalItem
 from lawqa.eval.generation_runner import run_generation_eval
 from lawqa.eval.judge import Judge, JudgeConfigError, check_judge_config
-from lawqa.eval.metrics.generation import citation_scores, is_refusal, percentile
+from lawqa.eval.metrics.generation import (
+    answer_structure,
+    citation_scores,
+    is_refusal,
+    percentile,
+)
 from lawqa.eval.report import write_report
 from lawqa.generation.llm_client import Message
 from lawqa.pipelines.base import (
@@ -72,6 +77,38 @@ def test_no_citations_means_zero_precision_and_recall() -> None:
 def test_refusal_detection() -> None:
     assert is_refusal("Không tìm thấy căn cứ trong dữ liệu hiện có.")
     assert not is_refusal("Người sử dụng đất được chuyển nhượng khi có Giấy chứng nhận [1].")
+
+
+def test_situation_answers_need_a_conclusion_and_a_legal_basis() -> None:
+    good = "**Kết luận:** Không được [1].\n**Căn cứ pháp lý:**\n- Điều 57 [1]"
+
+    assert answer_structure("situation", good, [], []) is True
+    assert answer_structure("situation", "Không được xây nhà [1].", [], []) is False
+
+
+ARTICLE_100 = _source(1, "100").model_copy(
+    update={
+        "context": "[1] Luật Đất đai (45/2013/QH13) — Điều 100. Cấp Giấy chứng nhận\n"
+        "1. Hộ gia đình, cá nhân đang sử dụng đất ổn định mà có một trong các loại giấy tờ "
+        "sau đây thì được cấp Giấy chứng nhận"
+    }
+)
+
+
+def test_lookup_answers_must_quote_the_article_asked_about() -> None:
+    quoted = (
+        'Khoản 1 Điều 100 quy định: "Hộ gia đình, cá nhân đang sử dụng đất ổn định mà có '
+        'một trong các loại giấy tờ sau đây thì được cấp" [1].'
+    )
+    paraphrased = "Ai có giấy tờ về đất thì được cấp sổ [1]."
+
+    assert answer_structure("lookup", quoted, [ARTICLE_100], [Citation(dieu="100")]) is True
+    assert answer_structure("lookup", paraphrased, [ARTICLE_100], [Citation(dieu="100")]) is False
+    assert answer_structure("lookup", quoted, [ARTICLE_100], [Citation(dieu="101")]) is False
+
+
+def test_other_intents_have_no_structure_check() -> None:
+    assert answer_structure("topic_search", "x", [], []) is None
 
 
 def test_percentile() -> None:
@@ -165,7 +202,7 @@ def _pipeline() -> FakePipeline:
     return FakePipeline(
         {
             "q-a": [
-                meta,
+                meta.model_copy(update={"intent": "situation"}),
                 SourcesEvent(sources=[_source(1, "57")]),
                 _done("Phải xin phép [1].", [1]),
             ],
@@ -200,6 +237,8 @@ async def test_generation_eval_aggregates_code_and_judge_metrics(tmp_path: Path)
     assert overall["faithfulness"] == 0.9  # only a was judged
     assert overall["latency_total_p50"] == 2000
     assert report.per_item["e"].error == "LLM_TIMEOUT"
+    assert report.per_item["a"].predicted_intent == "situation"
+    assert overall["structure_ok"] == 0.0  # a has no "Kết luận" section
     assert set(report.by_persona) == {"layperson", "professional"}
 
     json_path, md_path = write_report(report, tmp_path)

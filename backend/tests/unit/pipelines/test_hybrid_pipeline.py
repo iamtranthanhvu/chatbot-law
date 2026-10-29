@@ -291,3 +291,24 @@ async def test_out_of_scope_claim_with_weak_sources_is_refused_without_generatio
     done = events[-1]
     assert isinstance(done, DoneEvent) and "chỉ hỗ trợ" in done.answer
     assert llm.messages == []
+
+
+async def test_the_answer_format_follows_the_intent() -> None:
+    llm = FakeLLM(["ok [1]"])
+    understanding = FakeUnderstanding(SITUATION)
+
+    await _events(_with_understanding(FakeRetriever(CHUNKS), llm, understanding))
+
+    prompt = llm.messages[-1]["content"]
+    assert "**Kết luận:**" in prompt
+    assert "- Đất có Giấy chứng nhận chưa" in prompt
+
+
+async def test_an_overruled_out_of_scope_question_is_answered_as_a_topic_search() -> None:
+    strong = [make_chunk("82", "x", score=0.99).model_copy(update={"stage": "rerank"})]
+    llm = FakeLLM(["ok [1]"])
+    understanding = FakeUnderstanding(Understanding(intent="out_of_scope", legal_query="x"))
+
+    await _events(_with_understanding(FakeRetriever(strong), llm, understanding))
+
+    assert "mỗi ý một quy định" in llm.messages[-1]["content"]

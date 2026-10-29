@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
 
@@ -19,14 +20,30 @@ def _environment() -> Environment:
     )
 
 
-def build_messages(question: str, sources: list[ContextSource]) -> list[Message]:
+INTENT_FORMATS = ("situation", "lookup", "topic_search", "procedure")
+
+
+def build_messages(
+    question: str,
+    sources: list[ContextSource],
+    *,
+    intent: str | None = None,
+    missing_facts: Sequence[str] = (),
+) -> list[Message]:
     env = _environment()
+    answer_format = ""
+    if intent in INTENT_FORMATS:
+        answer_format = (
+            env.get_template(f"intents/{intent}.jinja")
+            .render(missing_facts=list(missing_facts))
+            .strip()
+        )
     return [
         {"role": "system", "content": env.get_template("system.jinja").render().strip()},
         {
             "role": "user",
             "content": env.get_template("user.jinja")
-            .render(question=question, sources=sources)
+            .render(question=question, sources=sources, format=answer_format)
             .strip(),
         },
     ]

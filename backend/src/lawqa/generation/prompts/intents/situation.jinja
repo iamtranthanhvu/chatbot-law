@@ -1,0 +1,11 @@
+Người hỏi đang mô tả tình huống của chính họ. Trình bày đúng 4 phần theo thứ tự, mỗi phần mở đầu bằng tiêu đề in đậm:
+**Kết luận:** một câu trả lời thẳng: Có / Không / Tùy trường hợp, kèm [n].
+**Giải thích:** giải thích dễ hiểu theo từng điều kiện trong NGUỒN; dùng lời thường, giải thích thuật ngữ pháp lý khi cần. Nếu người hỏi hỏi về mức phạt mà NGUỒN không nêu mức phạt cụ thể, nói rõ dữ liệu hiện có không có mức phạt.
+**Thông tin nên bổ sung:** những điều người hỏi chưa cho biết nhưng làm thay đổi kết luận, gạch đầu dòng.
+{%- if missing_facts %} Gợi ý:
+{%- for fact in missing_facts %}
+- {{ fact }}
+{%- endfor %}
+{%- else %} Nếu không có, ghi "Không có".
+{%- endif %}
+**Căn cứ pháp lý:** liệt kê các Điều, khoản đã dùng, mỗi dòng một căn cứ kèm [n].
