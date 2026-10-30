@@ -93,7 +93,7 @@ T1 repo + infra dev
 **Checkpoint 5** — gọi `/ask` bằng curl thấy stream đúng contract; quá tải trả `BUSY`.
 
 ### Phase 7: Web
-- [ ] T22: Next.js scaffold + trang hỏi đáp streaming
+- [x] T22: Next.js scaffold + trang hỏi đáp streaming
 - [ ] T23: Panel nguyên văn, bố cục câu tình huống, feedback
 - [ ] T24: Lịch sử local, footer, a11y, E2E
 

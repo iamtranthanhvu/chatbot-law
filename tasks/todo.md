@@ -463,7 +463,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 7: Web
 
-### - [ ] T22: Next.js scaffold + trang hỏi đáp streaming
+### - [x] T22: Next.js scaffold + trang hỏi đáp streaming
 
 **Description:** Next.js (App Router, TS strict, Tailwind, shadcn/ui, pnpm); API client duy nhất trong `src/lib`; parser SSE (POST + stream) có test; trang `/`: ô nhập, câu gợi ý, render câu trả lời streaming (markdown an toàn) + danh sách nguồn; xử lý `BUSY`/429/lỗi mạng.
 
