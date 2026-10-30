@@ -28,12 +28,12 @@ from lawqa.ingestion.service import IndexingError, IngestService
 from lawqa.ingestion.store import DocumentExistsError, list_documents
 from lawqa.ingestion.tokens import HFTokenCounter
 from lawqa.pipelines.base import DoneEvent, ErrorEvent, Query, SourcesEvent, TokenEvent
-from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings
+from lawqa.pipelines.hybrid import HybridRAGPipeline
 from lawqa.retrieval.citation_lookup import CitationAwareRetriever
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
 from lawqa.retrieval.hybrid import RetrievalSettings
 from lawqa.understanding.classifier import QueryUnderstanding, UnderstandingRetriever
-from lawqa.wiring import build_llm, build_retriever
+from lawqa.wiring import answer_config, build_llm, build_pipeline, build_retriever
 
 app = typer.Typer(help="Law QA — công cụ vận hành (nạp văn bản, tìm kiếm, hỏi đáp, đánh giá).")
 documents_app = typer.Typer(help="Xem và quản lý văn bản đã nạp.")
@@ -107,20 +107,7 @@ async def _pipeline() -> AsyncIterator[HybridRAGPipeline]:
     llm = _llm()
     try:
         async with _retriever() as retriever:
-            yield HybridRAGPipeline(
-                retriever=retriever,
-                llm=llm,
-                counter=HFTokenCounter(settings.tokenizer_name),
-                settings=PipelineSettings(
-                    context_max_tokens=settings.context_max_tokens,
-                    max_answer_tokens=settings.max_answer_tokens,
-                    max_chunks=settings.max_context_chunks,
-                    min_rerank_score=settings.rerank_min_score,
-                    out_of_scope_override_score=settings.out_of_scope_override_score,
-                    search_with_legal_query=settings.search_with_legal_query,
-                ),
-                understanding=QueryUnderstanding(llm) if settings.query_understanding else None,
-            )
+            yield build_pipeline(settings, retriever, llm)
     finally:
         await llm.aclose()
 
@@ -400,23 +387,7 @@ def eval_generation(
                     pipeline,
                     Judge(judge_llm),
                     reference_date,
-                    config={
-                        "llm_model": settings.llm_model,
-                        "judge_model": settings.judge_model,
-                        "context_max_tokens": settings.context_max_tokens,
-                        "max_context_chunks": settings.max_context_chunks,
-                        "max_answer_tokens": settings.max_answer_tokens,
-                        "retrieval_mode": settings.retrieval_mode,
-                        "rerank_top_n": settings.rerank_top_n,
-                        "rerank_candidates": settings.rerank_candidates,
-                        "rerank_min_score": settings.rerank_min_score,
-                        "citation_lookup": settings.citation_lookup,
-                        "synonym_expansion": settings.synonym_expansion,
-                        "query_understanding": settings.query_understanding,
-                        "retrieval": RetrievalSettings(
-                            collection=settings.qdrant_collection
-                        ).model_dump(),
-                    },
+                    config={**answer_config(settings), "judge_model": settings.judge_model},
                     dataset=dataset.name,
                 )
         finally:

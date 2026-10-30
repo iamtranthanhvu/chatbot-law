@@ -1,7 +1,9 @@
 import uuid
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     Date,
     DateTime,
@@ -13,7 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
-from sqlalchemy.dialects.postgresql import ARRAY
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -106,3 +108,48 @@ class CorpusState(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+
+
+class QueryLog(Base):
+    __tablename__ = "queries"
+    __table_args__ = (
+        CheckConstraint("outcome IN ('done', 'error', 'cancelled')", name="queries_outcome"),
+        Index("ix_queries_created_at", "created_at"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    question: Mapped[str] = mapped_column(Text)
+    intent: Mapped[str | None] = mapped_column(String(32))
+    legal_query: Mapped[str | None] = mapped_column(Text)
+    pipeline: Mapped[str] = mapped_column(String(32))
+    config_hash: Mapped[str] = mapped_column(String(16))
+    corpus_version: Mapped[int] = mapped_column(Integer)
+    sources: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    retrieved: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
+    answer: Mapped[str] = mapped_column(Text)
+    citations: Mapped[list[int]] = mapped_column(ARRAY(Integer))
+    invalid_citations: Mapped[list[int]] = mapped_column(ARRAY(Integer))
+    missing_facts: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    latency_ms: Mapped[dict[str, int]] = mapped_column(JSONB)
+    usage: Mapped[dict[str, int]] = mapped_column(JSONB)
+    model: Mapped[str | None] = mapped_column(String(128))
+    git_sha: Mapped[str] = mapped_column(String(32))
+    cached: Mapped[bool] = mapped_column(Boolean)
+    outcome: Mapped[str] = mapped_column(String(16))
+    error_code: Mapped[str | None] = mapped_column(String(32))
+    ip_hash: Mapped[str] = mapped_column(String(64))
+
+
+class Feedback(Base):
+    __tablename__ = "feedback"
+    __table_args__ = (CheckConstraint("rating IN ('up', 'down')", name="feedback_rating"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    query_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("queries.id", ondelete="CASCADE"), unique=True
+    )
+    rating: Mapped[str] = mapped_column(String(8))
+    note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

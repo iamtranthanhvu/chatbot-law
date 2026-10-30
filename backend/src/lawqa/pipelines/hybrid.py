@@ -2,7 +2,7 @@ import logging
 import time
 from collections.abc import AsyncIterator
 from datetime import date
-from typing import Protocol
+from typing import Any, Protocol
 
 from pydantic import BaseModel
 
@@ -112,12 +112,15 @@ class HybridRAGPipeline:
         try:
             chunks = await self._retriever.search(texts, query.reference_date)
             retrieved_at = time.perf_counter()
+            trace = _trace(understanding, chunks)
             if intent == "out_of_scope":
                 # The classifier can be wrong about scope; trust it only when retrieval agrees.
                 if not self._strong_source(chunks):
                     yield MetaEvent(query_id=query.query_id, pipeline=self.name, intent=intent)
                     yield SourcesEvent(sources=[])
-                    yield DoneEvent(answer=OUT_OF_SCOPE_ANSWER, citations=[], model=None)
+                    yield DoneEvent(
+                        answer=OUT_OF_SCOPE_ANSWER, citations=[], model=None, trace=trace
+                    )
                     return
                 logger.info("pipeline.out_of_scope_overruled", extra={"query_id": query.query_id})
                 intent = "topic_search"
@@ -138,7 +141,7 @@ class HybridRAGPipeline:
             yield SourcesEvent(sources=[_source(s) for s in sources])
 
             if not sources:
-                yield DoneEvent(answer=NO_BASIS_ANSWER, citations=[], model=None)
+                yield DoneEvent(answer=NO_BASIS_ANSWER, citations=[], model=None, trace=trace)
                 return
 
             pieces: list[str] = []
@@ -165,6 +168,7 @@ class HybridRAGPipeline:
                     "ttft": _ms(started, first_token_at or finished),
                     "total": _ms(started, finished),
                 },
+                trace=trace,
             )
         except (EncoderError, LLMError) as error:
             logger.exception("pipeline.failed", extra={"query_id": query.query_id})
@@ -179,6 +183,19 @@ class HybridRAGPipeline:
             and best.stage in ("rerank", "lookup")
             and best.score >= self._settings.out_of_scope_override_score
         )
+
+
+TRACE_CHUNKS = 20
+
+
+def _trace(understanding: Understanding | None, chunks: list[RetrievedChunk]) -> dict[str, Any]:
+    ranked = sorted(chunks, key=lambda c: c.score, reverse=True)[:TRACE_CHUNKS]
+    return {
+        "legal_query": understanding.legal_query if understanding else None,
+        "retrieved": [
+            {"chunk_id": c.chunk_id, "stage": c.stage, "score": round(c.score, 4)} for c in ranked
+        ],
+    }
 
 
 def _source(source: ContextSource) -> Source:

@@ -421,7 +421,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T20: `/ask` SSE + log truy vấn + feedback
+### - [x] T20: `/ask` SSE + log truy vấn + feedback
 
 **Description:** `POST /ask` stream SSE đúng contract SPEC 3.6; migration bảng `queries` + `feedback`; ghi log sau khi stream xong (câu hỏi, intent, chunk ids + điểm, câu trả lời, latency từng giai đoạn, git SHA, `ip_hash` HMAC); `POST /queries/{id}/feedback`; câu hỏi > 1.000 ký tự → 422; client ngắt kết nối → hủy sinh.
 

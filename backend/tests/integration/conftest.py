@@ -28,7 +28,7 @@ def postgres_url() -> Iterator[str]:
 async def session_factory(postgres_url: str) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     engine = create_engine(postgres_url)
     async with engine.begin() as connection:
-        await connection.execute(text("TRUNCATE documents CASCADE"))
+        await connection.execute(text("TRUNCATE documents, queries CASCADE"))
         await connection.execute(text("UPDATE corpus_state SET version = 0"))
     yield create_session_factory(engine)
     await engine.dispose()

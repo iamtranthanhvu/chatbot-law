@@ -11,12 +11,17 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from lawqa.api.deps import AppContainer, ReadinessCheck
 from lawqa.core.config import Settings
+from lawqa.db.queries import SqlQueryStore
 from lawqa.db.session import create_engine, create_session_factory
+from lawqa.eval.runner import config_hash, git_sha
 from lawqa.generation.llm_client import LLMClient
+from lawqa.ingestion.tokens import HFTokenCounter
+from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings, Retriever
 from lawqa.retrieval.citation_lookup import CitationAwareRetriever, CitationLookup
 from lawqa.retrieval.encoder_client import EncoderClient
 from lawqa.retrieval.hybrid import HybridRetriever, RetrievalSettings
 from lawqa.retrieval.rerank import Reranker, RerankingRetriever, RerankSettings
+from lawqa.understanding.classifier import QueryUnderstanding
 from lawqa.understanding.synonyms import (
     DEFAULT_SYNONYMS,
     SynonymDictionary,
@@ -61,6 +66,43 @@ def build_retriever(
     )
 
 
+def build_pipeline(settings: Settings, retriever: Retriever, llm: LLMClient) -> HybridRAGPipeline:
+    return HybridRAGPipeline(
+        retriever=retriever,
+        llm=llm,
+        counter=HFTokenCounter(settings.tokenizer_name),
+        settings=PipelineSettings(
+            context_max_tokens=settings.context_max_tokens,
+            max_answer_tokens=settings.max_answer_tokens,
+            max_chunks=settings.max_context_chunks,
+            min_rerank_score=settings.rerank_min_score,
+            out_of_scope_override_score=settings.out_of_scope_override_score,
+            search_with_legal_query=settings.search_with_legal_query,
+        ),
+        understanding=QueryUnderstanding(llm) if settings.query_understanding else None,
+    )
+
+
+def answer_config(settings: Settings) -> dict[str, object]:
+    """Settings that change answers; hashed into query logs, eval reports and cache keys."""
+    return {
+        "llm_model": settings.llm_model,
+        "context_max_tokens": settings.context_max_tokens,
+        "max_context_chunks": settings.max_context_chunks,
+        "max_answer_tokens": settings.max_answer_tokens,
+        "retrieval_mode": settings.retrieval_mode,
+        "rerank_top_n": settings.rerank_top_n,
+        "rerank_candidates": settings.rerank_candidates,
+        "rerank_min_score": settings.rerank_min_score,
+        "citation_lookup": settings.citation_lookup,
+        "synonym_expansion": settings.synonym_expansion,
+        "query_understanding": settings.query_understanding,
+        "search_with_legal_query": settings.search_with_legal_query,
+        "out_of_scope_override_score": settings.out_of_scope_override_score,
+        "retrieval": RetrievalSettings(collection=settings.qdrant_collection).model_dump(),
+    }
+
+
 def llm_health_url(settings: Settings) -> str:
     base = settings.llm_base_url.rstrip("/")
     if settings.llm_api_style == "ollama":
@@ -101,13 +143,23 @@ def redis_check(redis: Redis) -> ReadinessCheck:
 
 @asynccontextmanager
 async def build_container(settings: Settings) -> AsyncIterator[AppContainer]:
+    if settings.ip_hash_secret is None:
+        raise RuntimeError("IP_HASH_SECRET chưa được đặt (cần để băm IP trong log truy vấn)")
     engine = create_engine(settings.database_url)
     session_factory = create_session_factory(engine)
     qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     redis = Redis.from_url(settings.redis_url)
+    encoder = EncoderClient(settings.model_server_url)
+    llm = build_llm(settings)
+    retriever = build_retriever(settings, session_factory, qdrant, encoder)
     try:
         yield AppContainer(
             session_factory=session_factory,
+            pipeline=build_pipeline(settings, retriever, llm),
+            query_store=SqlQueryStore(session_factory),
+            ip_hash_secret=settings.ip_hash_secret.get_secret_value(),
+            config_hash=config_hash(answer_config(settings)),
+            git_sha=settings.git_sha or git_sha(),
             checks={
                 "database": database_check(session_factory),
                 "qdrant": qdrant_check(qdrant, settings.qdrant_collection),
@@ -117,6 +169,8 @@ async def build_container(settings: Settings) -> AsyncIterator[AppContainer]:
             },
         )
     finally:
+        await llm.aclose()
+        await encoder.aclose()
         await redis.aclose()
         await qdrant.close()
         await engine.dispose()

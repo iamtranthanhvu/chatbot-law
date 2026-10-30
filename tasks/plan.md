@@ -87,7 +87,7 @@ T1 repo + infra dev
 
 ### Phase 6: API
 - [x] T19: App factory, health, `/documents`, `/chunks/{id}`
-- [ ] T20: `/ask` SSE + log truy vấn + feedback
+- [x] T20: `/ask` SSE + log truy vấn + feedback
 - [ ] T21: Rate limit + giới hạn đồng thời + cache
 
 **Checkpoint 5** — gọi `/ask` bằng curl thấy stream đúng contract; quá tải trả `BUSY`.

@@ -312,3 +312,27 @@ async def test_an_overruled_out_of_scope_question_is_answered_as_a_topic_search(
     await _events(_with_understanding(FakeRetriever(strong), llm, understanding))
 
     assert "mỗi ý một quy định" in llm.messages[-1]["content"]
+
+
+async def test_done_carries_an_internal_trace_for_the_query_log() -> None:
+    understanding = FakeUnderstanding(SITUATION)
+
+    events = await _events(
+        _with_understanding(FakeRetriever(CHUNKS), FakeLLM(["ok [1]"]), understanding)
+    )
+
+    done = events[-1]
+    assert isinstance(done, DoneEvent)
+    assert done.trace["legal_query"] == SITUATION.legal_query
+    assert done.trace["retrieved"][0].keys() == {"chunk_id", "stage", "score"}
+    assert "trace" not in done.model_dump()
+
+
+async def test_refusals_carry_the_trace_too() -> None:
+    weak = [make_chunk("64", "x", score=0.003).model_copy(update={"stage": "rerank"})]
+    understanding = FakeUnderstanding(Understanding(intent="out_of_scope", legal_query="x"))
+
+    events = await _events(_with_understanding(FakeRetriever(weak), FakeLLM([]), understanding))
+
+    done = events[-1]
+    assert isinstance(done, DoneEvent) and done.trace["retrieved"][0]["stage"] == "rerank"

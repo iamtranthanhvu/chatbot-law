@@ -218,6 +218,7 @@ event: token    data: {"delta":"…"}
 event: done     data: {"citations":[1,3],"missing_facts":["…"],"usage":{…},"latency_ms":{…},"cached":false}
 event: error    data: {"code":"BUSY","message":"Hệ thống đang bận, vui lòng thử lại sau ít phút."}
 ```
+Trường bổ sung (thêm vào, không đổi trường trên): mỗi source có `chunk_ids` (một nguồn gom nhiều chunk cùng Điều; `chunk_id` = chunk đầu), `khoan` là chuỗi `"1, 2"`; `done` có thêm `answer` (bản đã lọc trích dẫn sai), `invalid_citations`, `model`, `disclaimer`. `usage` hiện là `{}` (chưa lấy số token từ LLM).
 
 **Bảo vệ hệ thống public:** rate limit theo IP (Redis) 10 câu/phút, 100 câu/ngày; câu hỏi ≤ 1.000 ký tự; `MAX_CONCURRENT_GENERATIONS` = 16, chờ tối đa 30s rồi trả `BUSY`; **cache** câu trả lời (Redis, TTL 24h, khóa = hash(câu hỏi chuẩn hóa + pipeline + config hash + `corpus_version`)) — `corpus_version` tăng mỗi lần ingest/remove nên cache tự vô hiệu; CORS chỉ cho domain web.
 

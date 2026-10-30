@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _ENV = SettingsConfigDict(env_file=("../.env", ".env"), env_file_encoding="utf-8", extra="ignore")
@@ -54,6 +54,10 @@ class Settings(IngestionSettings, DatabaseSettings):
     context_max_tokens: int = Field(default=6000, gt=0)
     max_answer_tokens: int = Field(default=1024, gt=0)
     max_context_chunks: int = Field(default=8, gt=0)
+
+    ip_hash_secret: SecretStr | None = None
+    # Set in container images, where there is no .git; otherwise read from git.
+    git_sha: str | None = None
 
     log_level: str = "INFO"
     log_json: bool = False

@@ -1,7 +1,7 @@
 import uuid
 from collections.abc import AsyncIterator
 from datetime import date
-from typing import Annotated, Literal, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import BaseModel, Field
 
@@ -55,6 +55,8 @@ class DoneEvent(BaseModel):
     model: str | None = None
     latency_ms: dict[str, int] = Field(default_factory=dict)
     disclaimer: str = DISCLAIMER
+    # Internal record for the query log (legal rewrite, retrieved chunks); never sent to clients.
+    trace: dict[str, Any] = Field(default_factory=dict, exclude=True)
 
 
 class ErrorEvent(BaseModel):
