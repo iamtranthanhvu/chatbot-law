@@ -1,10 +1,10 @@
-import { act, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Chat } from "@/components/Chat";
 import { ApiError } from "@/lib/api";
-import type { AskEvent, SourcePayload } from "@/lib/types";
+import { DONE, SOURCE, controlledAsk } from "./helpers";
 
 const askMock = vi.fn();
 
@@ -12,60 +12,6 @@ vi.mock("@/lib/api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/api")>()),
   ask: (...args: unknown[]) => askMock(...args),
 }));
-
-export const SOURCE: SourcePayload = {
-  n: 1,
-  chunk_id: "c1",
-  chunk_ids: ["c1"],
-  so_hieu: "45/2013/QH13",
-  dieu: "188",
-  khoan: "1",
-  title: "Điều kiện thực hiện các quyền chuyển nhượng",
-  snippet: "1. Người sử dụng đất được thực hiện các quyền…",
-  score: 0.9,
-};
-
-export const DONE = {
-  answer: "Không được, vì chưa có Giấy chứng nhận [1].",
-  citations: [1],
-  invalid_citations: [],
-  missing_facts: [],
-  latency_ms: {},
-  model: "m",
-  disclaimer: "Thông tin chỉ mang tính tham khảo, không thay thế tư vấn pháp lý.",
-  cached: false,
-};
-
-/** An ask() whose events the test releases one at a time. */
-export function controlledAsk() {
-  const queue: AskEvent[] = [];
-  let wake: (() => void) | null = null;
-  let finished = false;
-  async function* generate(): AsyncGenerator<AskEvent> {
-    for (;;) {
-      while (queue.length) yield queue.shift()!;
-      if (finished) return;
-      await new Promise<void>((resolve) => (wake = resolve));
-    }
-  }
-  return {
-    generate,
-    async push(...events: AskEvent[]) {
-      await act(async () => {
-        queue.push(...events);
-        wake?.();
-        await new Promise((r) => setTimeout(r, 0));
-      });
-    },
-    async end() {
-      await act(async () => {
-        finished = true;
-        wake?.();
-        await new Promise((r) => setTimeout(r, 0));
-      });
-    },
-  };
-}
 
 async function askQuestion(text: string) {
   const user = userEvent.setup();

@@ -480,7 +480,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T23: Panel nguyên văn, bố cục câu tình huống, feedback
+### - [x] T23: Panel nguyên văn, bố cục câu tình huống, feedback
 
 **Description:** Bấm `[n]` → panel/drawer gọi `/chunks/{id}` hiển thị nguyên văn + vị trí; câu `situation` hiển thị khối "Kết luận" nổi bật và "Thông tin nên bổ sung" (từ `missing_facts`); nút 👍/👎 + ghi chú.
 

@@ -3,6 +3,9 @@
 import { useReducer, useRef, useState } from "react";
 
 import { AnswerText } from "@/components/AnswerText";
+import { CitationPanel } from "@/components/CitationPanel";
+import { Feedback } from "@/components/Feedback";
+import { SituationAnswer, splitSituation } from "@/components/SituationAnswer";
 import { Sources } from "@/components/Sources";
 import { Suggestions } from "@/components/Suggestions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -37,6 +40,7 @@ function toUserError(error: unknown): ErrorPayload {
 export function Chat() {
   const [question, setQuestion] = useState("");
   const [state, dispatch] = useReducer(answerReducer, initialAnswer);
+  const [openSource, setOpenSource] = useState<number | null>(null);
   const controller = useRef<AbortController | null>(null);
   const input = useRef<HTMLTextAreaElement>(null);
   const streaming = state.status === "streaming";
@@ -62,9 +66,7 @@ export function Chat() {
     controller.current?.abort();
   }
 
-  function cite(n: number) {
-    document.getElementById(`source-${n}`)?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-  }
+  const situation = state.intent === "situation" ? splitSituation(state.text) : null;
 
   return (
     <div className="flex flex-col gap-6">
@@ -141,15 +143,35 @@ export function Chat() {
             {streaming && !state.text && (
               <p className="text-sm text-muted-foreground">Đang tìm căn cứ và soạn câu trả lời…</p>
             )}
-            {state.text && (
-              <AnswerText text={state.text} sourceCount={state.sources.length} onCite={cite} />
+            {situation ? (
+              <SituationAnswer
+                parts={situation}
+                missingFacts={state.done?.missing_facts ?? []}
+                sourceCount={state.sources.length}
+                onCite={setOpenSource}
+              />
+            ) : (
+              state.text && (
+                <AnswerText
+                  text={state.text}
+                  sourceCount={state.sources.length}
+                  onCite={setOpenSource}
+                />
+              )
             )}
             {state.done && (
               <p className="mt-4 text-xs text-muted-foreground">{state.done.disclaimer}</p>
             )}
           </section>
 
-          {state.sources.length > 0 && <Sources sources={state.sources} onOpen={cite} />}
+          {state.done && state.queryId && <Feedback key={state.queryId} queryId={state.queryId} />}
+
+          {state.sources.length > 0 && <Sources sources={state.sources} onOpen={setOpenSource} />}
+
+          <CitationPanel
+            source={state.sources.find((s) => s.n === openSource) ?? null}
+            onClose={() => setOpenSource(null)}
+          />
         </div>
       )}
     </div>
