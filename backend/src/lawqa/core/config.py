@@ -55,6 +55,13 @@ class Settings(IngestionSettings, DatabaseSettings):
     max_answer_tokens: int = Field(default=1024, gt=0)
     max_context_chunks: int = Field(default=8, gt=0)
 
+    rate_limit_per_minute: int = Field(default=10, gt=0)
+    rate_limit_per_day: int = Field(default=100, gt=0)
+    max_concurrent_generations: int = Field(default=16, gt=0)
+    generation_wait_seconds: float = Field(default=30, gt=0)
+    answer_cache_ttl_seconds: int = Field(default=86400, ge=0)
+    cors_origins: list[str] = Field(default_factory=list)
+
     ip_hash_secret: SecretStr | None = None
     # Set in container images, where there is no .git; otherwise read from git.
     git_sha: str | None = None

@@ -438,7 +438,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T21: Rate limit + giới hạn đồng thời + cache
+### - [x] T21: Rate limit + giới hạn đồng thời + cache
 
 **Description:** Rate limit theo IP trên Redis (10/phút, 100/ngày, cấu hình được) → 429; semaphore `MAX_CONCURRENT_GENERATIONS` + chờ tối đa 30s → `BUSY`; cache câu trả lời (khóa gồm câu chuẩn hóa + pipeline + config hash + `corpus_version`), phát lại dạng SSE với `cached=true`.
 
@@ -456,8 +456,8 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 **Estimated scope:** M
 
 ### Checkpoint 5: API
-- [ ] Tests pass; `/ask` qua curl đúng contract trên Mac
-- [ ] Rate limit, BUSY, cache hoạt động
+- [x] Tests pass; `/ask` qua curl đúng contract trên Mac
+- [x] Rate limit, BUSY, cache hoạt động (rate limit thử thật trên Mac; BUSY và cache qua integration test với Redis thật)
 
 ---
 

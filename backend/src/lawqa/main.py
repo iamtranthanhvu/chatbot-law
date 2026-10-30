@@ -1,9 +1,10 @@
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Sequence
 from contextlib import asynccontextmanager
 
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
@@ -21,7 +22,7 @@ logger = structlog.get_logger("lawqa.api")
 _HTTP_CODES = {404: "NOT_FOUND", 405: "METHOD_NOT_ALLOWED"}
 
 
-def create_app(container: AppContainer | None = None) -> FastAPI:
+def create_app(container: AppContainer | None = None, cors_origins: Sequence[str] = ()) -> FastAPI:
     """With a container (tests) the app uses it as is; without one it builds the real
     clients at startup and closes them at shutdown."""
 
@@ -45,6 +46,13 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
     )
     if container is not None:
         app.state.container = container
+    if cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=list(cors_origins),
+            allow_methods=["GET", "POST"],
+            allow_headers=["content-type"],
+        )
     app.add_middleware(RequestContextMiddleware)
     _add_error_handlers(app)
     app.include_router(health.router, prefix=API_PREFIX)
@@ -56,17 +64,21 @@ def create_app(container: AppContainer | None = None) -> FastAPI:
 def app_factory() -> FastAPI:
     settings = get_settings()
     configure_logging(settings.log_level, json_output=settings.log_json)
-    return create_app()
+    return create_app(cors_origins=settings.cors_origins)
 
 
-def _error(status: int, code: str, message: str) -> JSONResponse:
-    return JSONResponse({"error": {"code": code, "message": message}}, status_code=status)
+def _error(
+    status: int, code: str, message: str, headers: dict[str, str] | None = None
+) -> JSONResponse:
+    return JSONResponse(
+        {"error": {"code": code, "message": message}}, status_code=status, headers=headers
+    )
 
 
 def _add_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(AppError)
     async def app_error(request: Request, error: AppError) -> JSONResponse:
-        return _error(error.status_code, error.code, error.message)
+        return _error(error.status_code, error.code, error.message, error.headers)
 
     @app.exception_handler(HTTPException)
     async def http_error(request: Request, error: HTTPException) -> JSONResponse:

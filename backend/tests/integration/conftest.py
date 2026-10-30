@@ -4,9 +4,11 @@ from collections.abc import AsyncIterator, Iterator
 import httpx
 import pytest
 from qdrant_client import AsyncQdrantClient
+from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from testcontainers.community.postgres import PostgresContainer
+from testcontainers.community.redis import RedisContainer
 from testcontainers.core.container import DockerContainer
 
 from lawqa.db.migrate import upgrade
@@ -14,6 +16,7 @@ from lawqa.db.session import create_engine, create_session_factory
 
 POSTGRES_IMAGE = "postgres:16.6-alpine"
 QDRANT_IMAGE = "qdrant/qdrant:v1.19.2"
+REDIS_IMAGE = "redis:7.4-alpine"
 
 
 @pytest.fixture(scope="session")
@@ -58,3 +61,18 @@ async def qdrant(qdrant_url: str) -> AsyncIterator[AsyncQdrantClient]:
         await client.delete_collection(collection.name)
     yield client
     await client.close()
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    with RedisContainer(REDIS_IMAGE) as container:
+        host, port = container.get_container_host_ip(), container.get_exposed_port(6379)
+        yield f"redis://{host}:{port}/0"
+
+
+@pytest.fixture
+async def redis(redis_url: str) -> AsyncIterator[Redis]:
+    client = Redis.from_url(redis_url)
+    await client.flushdb()
+    yield client
+    await client.aclose()

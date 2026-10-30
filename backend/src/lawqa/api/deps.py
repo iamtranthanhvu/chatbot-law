@@ -5,6 +5,9 @@ from typing import Protocol
 from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from lawqa.api.concurrency import GenerationSlots
+from lawqa.core.cache import AnswerCache
+from lawqa.core.rate_limit import RateLimiter
 from lawqa.db.queries import QueryStore
 from lawqa.pipelines.base import PipelineEvent, Query
 
@@ -28,6 +31,10 @@ class AppContainer:
     ip_hash_secret: str = ""
     config_hash: str = ""
     git_sha: str = ""
+    # Each protection is off when missing (tests, or a deliberate opt-out).
+    rate_limiter: RateLimiter | None = None
+    answer_cache: AnswerCache | None = None
+    slots: GenerationSlots | None = None
 
 
 def get_container(request: Request) -> AppContainer:

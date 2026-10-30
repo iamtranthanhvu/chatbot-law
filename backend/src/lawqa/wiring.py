@@ -9,8 +9,11 @@ from redis.asyncio import Redis
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from lawqa.api.concurrency import GenerationSlots
 from lawqa.api.deps import AppContainer, ReadinessCheck
+from lawqa.core.cache import AnswerCache
 from lawqa.core.config import Settings
+from lawqa.core.rate_limit import RateLimit, RateLimiter
 from lawqa.db.queries import SqlQueryStore
 from lawqa.db.session import create_engine, create_session_factory
 from lawqa.eval.runner import config_hash, git_sha
@@ -160,6 +163,21 @@ async def build_container(settings: Settings) -> AsyncIterator[AppContainer]:
             ip_hash_secret=settings.ip_hash_secret.get_secret_value(),
             config_hash=config_hash(answer_config(settings)),
             git_sha=settings.git_sha or git_sha(),
+            rate_limiter=RateLimiter(
+                redis,
+                (
+                    RateLimit(settings.rate_limit_per_minute, 60),
+                    RateLimit(settings.rate_limit_per_day, 86400),
+                ),
+            ),
+            answer_cache=(
+                AnswerCache(redis, settings.answer_cache_ttl_seconds)
+                if settings.answer_cache_ttl_seconds
+                else None
+            ),
+            slots=GenerationSlots(
+                settings.max_concurrent_generations, settings.generation_wait_seconds
+            ),
             checks={
                 "database": database_check(session_factory),
                 "qdrant": qdrant_check(qdrant, settings.qdrant_collection),

@@ -71,9 +71,10 @@ class FakeQueryStore:
     def __init__(self) -> None:
         self.records: list[QueryRecord] = []
         self.feedback: dict[uuid.UUID, tuple[str, str | None]] = {}
+        self.version = 7
 
     async def corpus_version(self) -> int:
-        return 7
+        return self.version
 
     async def save(self, record: QueryRecord) -> None:
         self.records.append(record)
@@ -251,3 +252,29 @@ async def test_feedback_for_an_unknown_query_is_404(store: FakeQueryStore) -> No
 
     assert response.status_code == 404
     assert response.json()["error"]["code"] == "NOT_FOUND"
+
+
+class BrokenRedisPart:
+    async def hit(self, client: str) -> None:
+        raise ConnectionError("redis down")
+
+    def key(self, *parts: object) -> str:
+        return "k"
+
+    async def get(self, key: str) -> None:
+        raise ConnectionError("redis down")
+
+    async def set(self, key: str, value: object) -> None:
+        raise ConnectionError("redis down")
+
+
+async def test_answers_still_flow_when_redis_is_down(store: FakeQueryStore) -> None:
+    container = _container(FakePipeline(), store)
+    container.rate_limiter = BrokenRedisPart()  # type: ignore[assignment]
+    container.answer_cache = BrokenRedisPart()  # type: ignore[assignment]
+    transport = httpx.ASGITransport(app=create_app(container))
+    async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:
+        response = await client.post("/api/v1/ask", json={"question": "q"})
+
+    assert response.status_code == 200
+    assert parse_sse(response.text)[-1][0] == "done"
