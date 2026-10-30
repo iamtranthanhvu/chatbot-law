@@ -99,6 +99,8 @@ def _container(pipeline: FakePipeline, store: FakeQueryStore) -> AppContainer:
 def parse_sse(body: str) -> list[tuple[str, Any]]:
     events = []
     for block in body.strip().split("\n\n"):
+        if block.startswith(":"):  # keep-alive comment
+            continue
         fields = dict(line.split(": ", 1) for line in block.splitlines())
         events.append((fields["event"], json.loads(fields["data"])))
     return events
@@ -120,6 +122,7 @@ async def test_ask_streams_meta_sources_tokens_done(store: FakeQueryStore) -> No
 
     assert response.status_code == 200
     assert response.headers["content-type"].startswith("text/event-stream")
+    assert "content-length" not in response.headers  # a stream has no known length
     events = parse_sse(response.text)
     assert [name for name, _ in events] == ["meta", "sources", "token", "token", "done"]
     meta, sources, done = events[0][1], events[1][1], events[-1][1]
@@ -203,7 +206,7 @@ async def test_a_client_disconnect_cancels_generation(store: FakeQueryStore) -> 
         return {"type": "http.disconnect"}
 
     async def send(message: dict[str, Any]) -> None:
-        if message["type"] == "http.response.body" and message.get("body"):
+        if message["type"] == "http.response.body" and b"event:" in message.get("body", b""):
             first_chunk.set()
 
     scope = {
@@ -278,3 +281,32 @@ async def test_answers_still_flow_when_redis_is_down(store: FakeQueryStore) -> N
 
     assert response.status_code == 200
     assert parse_sse(response.text)[-1][0] == "done"
+
+
+class SlowStartPipeline(FakePipeline):
+    async def answer(self, query: Query) -> AsyncIterator[PipelineEvent]:
+        await asyncio.sleep(0.35)  # understanding + retrieval before the first event
+        async for event in super().answer(query):
+            yield event
+
+
+async def test_keepalive_comments_flow_while_the_first_event_is_prepared(
+    store: FakeQueryStore,
+) -> None:
+    container = _container(SlowStartPipeline(), store)
+    container.heartbeat_seconds = 0.1
+    transport = httpx.ASGITransport(app=create_app(container))
+    async with httpx.AsyncClient(transport=transport, base_url="http://api") as client:
+        response = await client.post("/api/v1/ask", json={"question": "q"})
+
+    blocks = response.text.strip().split("\n\n")
+    assert blocks[0] == ": ok"
+    assert blocks[1:3] == [": ping", ": ping"]
+    assert [name for name, _ in parse_sse(response.text)] == [
+        "meta",
+        "sources",
+        "token",
+        "token",
+        "done",
+    ]
+    assert store.records[0].outcome == "done"

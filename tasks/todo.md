@@ -515,7 +515,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 **Estimated scope:** M
 
 ### Checkpoint 6: Web
-- [ ] Tests + E2E pass; luồng đầy đủ trên trình duyệt (desktop + mobile) ở dev
+- [x] Tests + E2E pass; luồng đầy đủ trên trình duyệt (desktop + mobile) ở dev (backend thật: câu tình huống 87s trên M1, hỏi lại từ cache ngay lập tức)
 - [ ] **Người duyệt** giao diện
 
 ---

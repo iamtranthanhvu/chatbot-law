@@ -1,12 +1,11 @@
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from typing import Annotated, Literal
 
 import anyio
 import structlog
 from fastapi import APIRouter, Depends, Request
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, StringConstraints
 
 from lawqa.api.concurrency import BusyError, GenerationSlots
@@ -17,7 +16,7 @@ from lawqa.api.deps import (
     get_pipeline,
     get_query_store,
 )
-from lawqa.api.sse import source_payload, to_sse
+from lawqa.api.sse import EventStreamResponse, source_payload, to_sse
 from lawqa.core.cache import AnswerCache, CachedAnswer
 from lawqa.core.errors import NotFoundError, RateLimitedError
 from lawqa.core.privacy import ip_hash
@@ -58,7 +57,7 @@ class FeedbackRequest(BaseModel):
 @router.post("/ask")
 async def ask(
     body: AskRequest, request: Request, container: Container, pipeline: Pipeline, store: Store
-) -> StreamingResponse:
+) -> EventStreamResponse:
     query = Query(text=body.question)
     client = ip_hash(container.ip_hash_secret, client_ip(request))
     if container.rate_limiter is not None:
@@ -92,10 +91,8 @@ async def ask(
         if cached
         else _generate(pipeline, query, container.slots, cache, cache_key)
     )
-    return StreamingResponse(
-        _stream(events, query, record, store),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    return EventStreamResponse(
+        _stream(events, query, record, store), heartbeat_seconds=container.heartbeat_seconds
     )
 
 
@@ -149,11 +146,12 @@ async def _replay(
 
 async def _stream(
     events: AsyncIterator[PipelineEvent], query: Query, record: QueryRecord, store: QueryStore
-) -> AsyncIterator[str]:
+) -> AsyncGenerator[str]:
     """A client disconnect cancels this generator, which closes the pipeline (and its LLM
     stream); the query is still logged, as "cancelled"."""
     with structlog.contextvars.bound_contextvars(query_id=query.query_id):
         try:
+            yield ": ok\n\n"
             async for event in events:
                 _note(record, event)
                 yield to_sse(event, cached=record.cached)

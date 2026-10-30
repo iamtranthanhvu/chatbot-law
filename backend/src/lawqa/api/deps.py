@@ -31,6 +31,8 @@ class AppContainer:
     ip_hash_secret: str = ""
     config_hash: str = ""
     git_sha: str = ""
+    # SSE comment sent while no event is ready, so proxies with idle timeouts keep the stream.
+    heartbeat_seconds: float = 15.0
     # Each protection is off when missing (tests, or a deliberate opt-out).
     rate_limiter: RateLimiter | None = None
     answer_cache: AnswerCache | None = None

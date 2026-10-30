@@ -1,5 +1,11 @@
+import contextlib
 import json
+from collections.abc import AsyncGenerator
 from typing import Any
+
+import anyio
+from starlette.responses import StreamingResponse
+from starlette.types import Receive, Scope, Send
 
 from lawqa.pipelines.base import (
     DoneEvent,
@@ -57,3 +63,60 @@ def done_payload(event: DoneEvent, *, cached: bool) -> dict[str, Any]:
         "disclaimer": event.disclaimer,
         "cached": cached,
     }
+
+
+class EventStreamResponse(StreamingResponse):
+    """SSE response that also sends a comment every `heartbeat_seconds` (proxies such as the
+    Next dev rewrite drop a stream after 30 idle seconds, and the first event can take longer
+    on slow hardware) and, when the client goes away, cancels the producer and waits for it
+    to finish cleaning up before returning."""
+
+    media_type = "text/event-stream"
+
+    def __init__(self, chunks: AsyncGenerator[str], heartbeat_seconds: float) -> None:
+        super().__init__(
+            chunks,
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+            media_type=self.media_type,
+        )
+        self._chunks = chunks
+        self._heartbeat = heartbeat_seconds
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        await send({"type": "http.response.start", "status": 200, "headers": self.raw_headers})
+        lock = anyio.Lock()
+        finished = False
+
+        async with anyio.create_task_group() as tasks:
+
+            async def write(body: bytes) -> None:
+                async with lock:
+                    try:
+                        await send({"type": "http.response.body", "body": body, "more_body": True})
+                    except OSError:  # the client is gone
+                        tasks.cancel_scope.cancel()
+
+            async def pump() -> None:
+                nonlocal finished
+                async with contextlib.aclosing(self._chunks) as chunks:
+                    async for chunk in chunks:
+                        await write(chunk.encode())
+                finished = True
+                tasks.cancel_scope.cancel()
+
+            async def ping() -> None:
+                while True:
+                    await anyio.sleep(self._heartbeat)
+                    await write(b": ping\n\n")
+
+            async def watch_disconnect() -> None:
+                while (await receive())["type"] != "http.disconnect":
+                    pass
+                tasks.cancel_scope.cancel()
+
+            tasks.start_soon(pump)
+            tasks.start_soon(ping)
+            tasks.start_soon(watch_disconnect)
+
+        if finished:
+            await send({"type": "http.response.body", "body": b"", "more_body": False})
