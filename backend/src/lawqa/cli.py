@@ -29,16 +29,11 @@ from lawqa.ingestion.store import DocumentExistsError, list_documents
 from lawqa.ingestion.tokens import HFTokenCounter
 from lawqa.pipelines.base import DoneEvent, ErrorEvent, Query, SourcesEvent, TokenEvent
 from lawqa.pipelines.hybrid import HybridRAGPipeline, PipelineSettings
-from lawqa.retrieval.citation_lookup import CitationAwareRetriever, CitationLookup
+from lawqa.retrieval.citation_lookup import CitationAwareRetriever
 from lawqa.retrieval.encoder_client import EncoderClient, EncoderError
-from lawqa.retrieval.hybrid import HybridRetriever, RetrievalSettings
-from lawqa.retrieval.rerank import Reranker, RerankingRetriever, RerankSettings
+from lawqa.retrieval.hybrid import RetrievalSettings
 from lawqa.understanding.classifier import QueryUnderstanding, UnderstandingRetriever
-from lawqa.understanding.synonyms import (
-    DEFAULT_SYNONYMS,
-    SynonymDictionary,
-    SynonymExpandingRetriever,
-)
+from lawqa.wiring import build_llm, build_retriever
 
 app = typer.Typer(help="Law QA — công cụ vận hành (nạp văn bản, tìm kiếm, hỏi đáp, đánh giá).")
 documents_app = typer.Typer(help="Xem và quản lý văn bản đã nạp.")
@@ -89,14 +84,7 @@ _MODES = {
 
 
 def _llm() -> LLMClient:
-    settings = get_settings()
-    return LLMClient(
-        settings.llm_base_url,
-        settings.llm_model,
-        settings.llm_api_key,
-        api_style=settings.llm_api_style,
-        num_ctx=settings.llm_num_ctx,
-    )
+    return build_llm(get_settings())
 
 
 @asynccontextmanager
@@ -106,27 +94,7 @@ async def _retriever() -> AsyncIterator[CitationAwareRetriever]:
     qdrant = AsyncQdrantClient(url=settings.qdrant_url)
     encoder = EncoderClient(settings.model_server_url)
     try:
-        first_stage = HybridRetriever(
-            qdrant, encoder, RetrievalSettings(collection=settings.qdrant_collection)
-        )
-        reranking = RerankingRetriever(
-            first_stage,
-            Reranker(
-                encoder,
-                RerankSettings(top_n=settings.rerank_top_n, candidates=settings.rerank_candidates),
-            ),
-            default_mode=settings.retrieval_mode,
-        )
-        expanding = SynonymExpandingRetriever(
-            reranking,
-            SynonymDictionary.load(DEFAULT_SYNONYMS),
-            enabled=settings.synonym_expansion,
-        )
-        yield CitationAwareRetriever(
-            expanding,
-            CitationLookup(create_session_factory(engine)),
-            enabled=settings.citation_lookup,
-        )
+        yield build_retriever(settings, create_session_factory(engine), qdrant, encoder)
     finally:
         await encoder.aclose()
         await qdrant.close()

@@ -404,7 +404,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 ## Phase 6: API
 
-### - [ ] T19: App factory, health, endpoint đọc
+### - [x] T19: App factory, health, endpoint đọc
 
 **Description:** FastAPI app factory, DI cho pipeline/repo/clients, structlog JSON với `request_id`, error mapping một chỗ; `/healthz`, `/readyz` (DB, Qdrant, Redis, LLM, model-server), `GET /documents`, `GET /chunks/{id}`.
 

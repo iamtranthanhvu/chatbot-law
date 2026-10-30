@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "alembic>=1.14",
     "asyncpg>=0.30",
+    "fastapi>=0.115",
     "httpx>=0.28",
     "jinja2>=3.1",
     "mmh3>=5.0",
@@ -14,9 +15,12 @@ dependencies = [
     "python-docx>=1.1",
     "pyyaml>=6.0",
     "qdrant-client>=1.19,<1.20",
+    "redis>=5.2",
     "sqlalchemy[asyncio]>=2.0.36",
+    "structlog>=24.4",
     "tokenizers>=0.20",
     "typer>=0.15",
+    "uvicorn[standard]>=0.32",
 ]
 
 [project.scripts]
@@ -30,7 +34,7 @@ dev = [
     "pytest-asyncio>=0.24",
     "pytest-cov>=6.0",
     "ruff>=0.8",
-    "testcontainers[postgres]>=4.8",
+    "testcontainers[postgres,redis]>=4.8",
     "types-pyyaml>=6.0.12.20260906",
 ]
 

@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE_DEV := docker compose -f compose.dev.yml
 BACKEND := cd backend && uv run
 
-.PHONY: setup infra-up infra-down models dev-models migrate lint format typecheck test test-all test-models ingest reindex docs eval eval-compare
+.PHONY: setup infra-up infra-down models dev-models dev-api migrate lint format typecheck test test-all test-models ingest reindex docs eval eval-compare
 
 MODEL_SERVER := cd model-server && uv run
 
@@ -25,6 +25,9 @@ models:
 
 dev-models:
 	$(MODEL_SERVER) uvicorn model_server.main:app_factory --factory --host 127.0.0.1 --port 8001
+
+dev-api:
+	$(BACKEND) uvicorn lawqa.main:app_factory --factory --reload --host 127.0.0.1 --port 8000
 
 lint:
 	$(BACKEND) ruff check .

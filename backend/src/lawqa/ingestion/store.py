@@ -220,6 +220,10 @@ class StoredChunk(BaseModel):
     valid_to: date | None
 
 
+class ChunkWithDocument(StoredChunk):
+    document_name: str
+
+
 class DocumentSummary(BaseModel):
     so_hieu: str
     name: str
@@ -326,3 +330,21 @@ async def find_article_chunks(
         StoredChunk.model_validate({**_columns(chunk), "so_hieu": doc_so_hieu})
         for chunk, doc_so_hieu in rows
     ]
+
+
+async def get_chunk(
+    session_factory: async_sessionmaker[AsyncSession], chunk_id: uuid.UUID
+) -> ChunkWithDocument | None:
+    query = (
+        select(ChunkRow, Document.so_hieu, Document.name)
+        .join(Document, Document.id == ChunkRow.document_id)
+        .where(ChunkRow.id == chunk_id)
+    )
+    async with session_factory() as session:
+        row = (await session.execute(query)).first()
+    if row is None:
+        return None
+    chunk, so_hieu, name = row
+    return ChunkWithDocument.model_validate(
+        {**_columns(chunk), "so_hieu": so_hieu, "document_name": name}
+    )

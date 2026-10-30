@@ -86,7 +86,7 @@ T1 repo + infra dev
 **Checkpoint 4** — báo cáo baseline: `hybrid+rerank` > `dense-only`, `bm25-only`; query understanding cải thiện nhóm `layperson`.
 
 ### Phase 6: API
-- [ ] T19: App factory, health, `/documents`, `/chunks/{id}`
+- [x] T19: App factory, health, `/documents`, `/chunks/{id}`
 - [ ] T20: `/ask` SSE + log truy vấn + feedback
 - [ ] T21: Rate limit + giới hạn đồng thời + cache
 
