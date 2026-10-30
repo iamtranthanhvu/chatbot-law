@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Chat } from "@/components/Chat";
 import { ApiError } from "@/lib/api";
+import { clearHistory } from "@/lib/history";
 import { DONE, SOURCE, controlledAsk } from "./helpers";
 
 const askMock = vi.fn();
@@ -21,6 +22,8 @@ async function askQuestion(text: string) {
 
 beforeEach(() => {
   askMock.mockReset();
+  localStorage.clear();
+  clearHistory();
 });
 
 describe("Chat", () => {
@@ -51,7 +54,7 @@ describe("Chat", () => {
     expect(region).toHaveTextContent("Không được, vì chưa có Giấy chứng nhận");
     expect(region).toHaveAttribute("aria-busy", "false");
     expect(within(region).getByRole("button", { name: /nguồn 1/i })).toBeInTheDocument();
-    expect(screen.getByText(DONE.disclaimer)).toBeInTheDocument();
+    expect(within(region).getByText(DONE.disclaimer)).toBeInTheDocument();
   });
 
   it("explains a rate limit with the waiting time", async () => {
@@ -91,14 +94,67 @@ describe("Chat", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Không kết nối được máy chủ");
   });
 
-  it("a suggested question fills the box", async () => {
+  it("a suggested question is asked right away", async () => {
+    askMock.mockImplementation(controlledAsk().generate);
     render(<Chat />);
 
-    await userEvent.setup().click(screen.getAllByRole("button", { name: /sổ đỏ/i })[0]);
+    const suggestions = screen.getByRole("list", { name: /câu hỏi gợi ý/i });
+    await userEvent.setup().click(within(suggestions).getAllByRole("button", { name: /sổ đỏ/i })[0]);
 
-    const box = screen.getByRole<HTMLTextAreaElement>("textbox", { name: /câu hỏi/i });
-    expect(box.value).toMatch(/sổ đỏ/i);
-    expect(box).toHaveFocus();
+    expect(askMock).toHaveBeenCalledWith(expect.stringMatching(/sổ đỏ/i), expect.any(AbortSignal));
+  });
+
+  it("shows the question as a message and keeps earlier answers in the thread", async () => {
+    const first = controlledAsk();
+    askMock.mockImplementationOnce(first.generate);
+    render(<Chat />);
+    await askQuestion("Câu thứ nhất");
+    await first.push({ type: "done", data: { ...DONE, answer: "Trả lời một." } });
+    await first.end();
+
+    const second = controlledAsk();
+    askMock.mockImplementationOnce(second.generate);
+    await askQuestion("Câu thứ hai");
+    await second.push({ type: "done", data: { ...DONE, answer: "Trả lời hai." } });
+    await second.end();
+
+    expect(screen.getAllByRole("region", { name: /câu trả lời/i }).map((r) => r.textContent)).toEqual([
+      expect.stringContaining("Trả lời một."),
+      expect.stringContaining("Trả lời hai."),
+    ]);
+    expect(screen.getByText("Câu thứ hai")).toBeInTheDocument();
+  });
+
+  it("a new question clears the thread", async () => {
+    const stream = controlledAsk();
+    askMock.mockImplementation(stream.generate);
+    render(<Chat />);
+    await askQuestion("q");
+    await stream.push({ type: "done", data: DONE });
+    await stream.end();
+
+    await userEvent.setup().click(screen.getAllByRole("button", { name: /câu hỏi mới/i })[0]);
+
+    expect(screen.queryByRole("region", { name: /câu trả lời/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /bạn cần hỏi gì/i })).toBeInTheDocument();
+  });
+
+  it("a failed question can be retried", async () => {
+    askMock.mockImplementationOnce(async function* () {
+      throw new ApiError("NETWORK", "Không kết nối được máy chủ.");
+    });
+    const retry = controlledAsk();
+    askMock.mockImplementationOnce(retry.generate);
+    render(<Chat />);
+    await askQuestion("Điều 100?");
+
+    await userEvent.setup().click(await screen.findByRole("button", { name: /thử lại/i }));
+    await retry.push({ type: "done", data: DONE });
+    await retry.end();
+
+    expect(askMock).toHaveBeenLastCalledWith("Điều 100?", expect.any(AbortSignal));
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getAllByRole("region", { name: /câu trả lời/i })).toHaveLength(1);
   });
 
   it("does not send an empty question", async () => {

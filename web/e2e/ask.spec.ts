@@ -4,7 +4,7 @@ import { type Page, expect, test } from "@playwright/test";
 async function ask(page: Page, question: string) {
   await page.getByRole("textbox", { name: "Câu hỏi của bạn" }).fill(question);
   await page.getByRole("button", { name: "Hỏi", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Câu trả lời" })).toHaveAttribute(
+  await expect(page.getByRole("region", { name: "Câu trả lời" }).last()).toHaveAttribute(
     "aria-busy",
     "false",
   );

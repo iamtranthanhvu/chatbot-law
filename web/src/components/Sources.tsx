@@ -6,6 +6,7 @@ export function sourceLabel(source: SourcePayload): string {
   return source.khoan ? `Điều ${source.dieu}, khoản ${source.khoan}` : `Điều ${source.dieu}`;
 }
 
+/** The legal bases of one answer, as a strip of cards above it. */
 export function Sources({
   sources,
   onOpen,
@@ -14,29 +15,31 @@ export function Sources({
   onOpen: (n: number) => void;
 }) {
   return (
-    <section aria-labelledby="sources-heading" className="space-y-2">
-      <h2 id="sources-heading" className="text-sm font-semibold text-muted-foreground">
-        Căn cứ được dùng
-      </h2>
-      <ol aria-label="Căn cứ pháp lý" className="space-y-2">
+    <div className="min-w-0">
+      <p className="mb-2 text-xs font-medium tracking-wide text-muted-foreground uppercase">
+        Căn cứ · {sources.length}
+      </p>
+      <ol aria-label="Căn cứ pháp lý" className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
         {sources.map((source) => (
-          <li key={source.n} id={`source-${source.n}`}>
+          <li key={source.n} className="w-52 shrink-0">
             <button
               type="button"
               onClick={() => onOpen(source.n)}
-              className="w-full rounded-lg border bg-card p-3 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+              className="flex h-full w-full flex-col gap-1 rounded-lg border bg-card p-2.5 text-left transition-colors hover:border-primary/40 hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
-              <span className="font-medium">
-                [{source.n}] {sourceLabel(source)}
+              <span className="flex items-center gap-1.5 text-xs font-semibold">
+                <span className="inline-flex size-4.5 shrink-0 items-center justify-center rounded-full bg-accent text-[10px] text-accent-foreground">
+                  {source.n}
+                </span>
+                <span className="truncate">{sourceLabel(source)}</span>
               </span>
-              <span className="text-muted-foreground"> · {source.title}</span>
-              <span className="mt-1 line-clamp-2 block text-muted-foreground">
-                {source.snippet}
+              <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">
+                {source.title}
               </span>
             </button>
           </li>
         ))}
       </ol>
-    </section>
+    </div>
   );
 }

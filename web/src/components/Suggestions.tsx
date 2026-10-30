@@ -1,45 +1,31 @@
 "use client";
 
-const GROUPS = [
-  {
-    title: "Tình huống thường gặp",
-    questions: [
-      "Tôi muốn bán đất nhưng chưa có sổ đỏ thì có được không?",
-      "Xây nhà trên đất trồng lúa có bị xử lý không?",
-      "Nhà nước thu hồi đất của tôi thì có được bồi thường không?",
-    ],
-  },
-  {
-    title: "Tra cứu quy định",
-    questions: [
-      "Điều 100 Luật Đất đai 2013 quy định gì?",
-      "Điều kiện thực hiện quyền chuyển nhượng quyền sử dụng đất",
-      "Thời hạn sử dụng đất nông nghiệp của hộ gia đình, cá nhân",
-    ],
-  },
+import { ClipboardList, FileText, Hammer, House, Landmark, Sprout } from "lucide-react";
+
+const SUGGESTIONS = [
+  { icon: House, question: "Tôi muốn bán đất nhưng chưa có sổ đỏ thì có được không?" },
+  { icon: Hammer, question: "Xây nhà trên đất trồng lúa có bị xử lý không?" },
+  { icon: Landmark, question: "Nhà nước thu hồi đất của tôi thì có được bồi thường không?" },
+  { icon: FileText, question: "Điều 100 Luật Đất đai 2013 quy định gì?" },
+  { icon: ClipboardList, question: "Điều kiện thực hiện quyền chuyển nhượng quyền sử dụng đất" },
+  { icon: Sprout, question: "Thời hạn sử dụng đất nông nghiệp của hộ gia đình, cá nhân" },
 ];
 
 export function Suggestions({ onPick }: { onPick: (question: string) => void }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {GROUPS.map((group) => (
-        <section key={group.title} aria-label={group.title} className="space-y-2">
-          <h2 className="text-sm font-semibold text-muted-foreground">{group.title}</h2>
-          <ul className="space-y-2">
-            {group.questions.map((question) => (
-              <li key={question}>
-                <button
-                  type="button"
-                  onClick={() => onPick(question)}
-                  className="w-full rounded-lg border bg-card px-3 py-2 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                >
-                  {question}
-                </button>
-              </li>
-            ))}
-          </ul>
-        </section>
+    <ul aria-label="Câu hỏi gợi ý" className="grid gap-2 sm:grid-cols-2">
+      {SUGGESTIONS.map(({ icon: Icon, question }) => (
+        <li key={question}>
+          <button
+            type="button"
+            onClick={() => onPick(question)}
+            className="flex h-full w-full items-start gap-2.5 rounded-lg border bg-card px-3 py-2.5 text-left text-sm transition-colors hover:border-primary/40 hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+          >
+            <Icon aria-hidden className="mt-0.5 size-4 shrink-0 text-primary" />
+            <span>{question}</span>
+          </button>
+        </li>
       ))}
-    </div>
+    </ul>
   );
 }

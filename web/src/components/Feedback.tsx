@@ -1,8 +1,8 @@
 "use client";
 
+import { Check, ThumbsDown, ThumbsUp } from "lucide-react";
 import { useState } from "react";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError, sendFeedback } from "@/lib/api";
@@ -10,17 +10,17 @@ import type { Rating } from "@/lib/types";
 
 type Status = "idle" | "noting" | "sending" | "sent" | "failed";
 
-export function Feedback({ queryId }: { queryId: string }) {
+/** 👍 sends at once; 👎 first asks what was wrong (optional). */
+export function useFeedback(queryId: string) {
   const [status, setStatus] = useState<Status>("idle");
   const [rating, setRating] = useState<Rating | null>(null);
-  const [note, setNote] = useState("");
   const [error, setError] = useState("");
 
-  async function send(chosen: Rating, withNote?: string) {
+  async function send(chosen: Rating, note?: string) {
     setRating(chosen);
     setStatus("sending");
     try {
-      await sendFeedback(queryId, chosen, withNote);
+      await sendFeedback(queryId, chosen, note);
       setStatus("sent");
     } catch (failure) {
       setError(failure instanceof ApiError ? failure.message : "Đã xảy ra lỗi.");
@@ -28,53 +28,70 @@ export function Feedback({ queryId }: { queryId: string }) {
     }
   }
 
+  function startNote() {
+    setRating("down");
+    setStatus("noting");
+  }
+
+  return { status, rating, error, send, startNote };
+}
+
+export type FeedbackState = ReturnType<typeof useFeedback>;
+
+export function FeedbackButtons({ feedback }: { feedback: FeedbackState }) {
+  const { status, rating, send, startNote } = feedback;
   if (status === "sent") {
     return (
-      <p role="status" className="text-sm text-muted-foreground">
+      <p role="status" className="flex items-center gap-1 px-2 text-xs text-muted-foreground">
+        <Check aria-hidden className="size-3.5" />
         Cảm ơn bạn đã góp ý.
       </p>
     );
   }
-
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-muted-foreground">Câu trả lời này có giúp ích không?</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-pressed={rating === "up"}
-          aria-label="Câu trả lời hữu ích"
-          disabled={status === "sending"}
-          onClick={() => void send("up")}
-        >
-          👍 Hữu ích
-        </Button>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          aria-pressed={rating === "down"}
-          aria-label="Câu trả lời chưa tốt"
-          disabled={status === "sending"}
-          onClick={() => {
-            setRating("down");
-            setStatus("noting");
-          }}
-        >
-          👎 Chưa tốt
-        </Button>
-      </div>
+    <>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-pressed={rating === "up"}
+        aria-label="Câu trả lời hữu ích"
+        title="Hữu ích"
+        disabled={status === "sending"}
+        onClick={() => void send("up")}
+      >
+        <ThumbsUp aria-hidden />
+      </Button>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-pressed={rating === "down"}
+        aria-label="Câu trả lời chưa tốt"
+        title="Chưa tốt"
+        disabled={status === "sending"}
+        onClick={startNote}
+      >
+        <ThumbsDown aria-hidden />
+      </Button>
+    </>
+  );
+}
+
+export function FeedbackDetails({ feedback, queryId }: { feedback: FeedbackState; queryId: string }) {
+  const [note, setNote] = useState("");
+  const { status, rating, error, send } = feedback;
+  return (
+    <>
       {(status === "noting" || (status === "failed" && rating === "down")) && (
         <form
-          className="space-y-2"
+          className="mt-2 space-y-2 rounded-lg border p-3"
           onSubmit={(event) => {
             event.preventDefault();
             void send("down", note.trim() || undefined);
           }}
         >
-          <label htmlFor={`note-${queryId}`} className="text-sm">
+          <label htmlFor={`note-${queryId}`} className="text-sm font-medium">
             Góp ý (không bắt buộc)
           </label>
           <Textarea
@@ -91,10 +108,10 @@ export function Feedback({ queryId }: { queryId: string }) {
         </form>
       )}
       {status === "failed" && (
-        <Alert variant="destructive">
-          <AlertDescription>Chưa gửi được phản hồi: {error} Vui lòng thử lại.</AlertDescription>
-        </Alert>
+        <p role="alert" className="mt-2 text-sm text-destructive">
+          Chưa gửi được phản hồi: {error} Vui lòng thử lại.
+        </p>
       )}
-    </div>
+    </>
   );
 }

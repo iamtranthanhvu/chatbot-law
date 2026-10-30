@@ -55,32 +55,32 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  --primary: oklch(0.42 0.085 168);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.49 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --accent: oklch(0.965 0.015 168);
+  --accent-foreground: oklch(0.3 0.06 168);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.6 0.09 168);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(0.982 0.004 168);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.42 0.085 168);
   --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent: oklch(0.945 0.012 168);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.6 0.09 168);
 }
 
 .dark {
@@ -126,5 +126,27 @@
   }
   html {
     @apply font-sans;
+  }
+}
+@layer components {
+  /* Answer prose: the model writes short paragraphs, bold section labels and lists. */
+  .answer-prose {
+    @apply text-[0.9375rem] leading-7 text-foreground;
+  }
+  .answer-prose p + p,
+  .answer-prose p + ul,
+  .answer-prose p + ol,
+  .answer-prose ul + p,
+  .answer-prose ol + p {
+    @apply mt-3;
+  }
+  .answer-prose ul {
+    @apply mt-2 list-disc space-y-1.5 pl-5 marker:text-muted-foreground;
+  }
+  .answer-prose ol {
+    @apply mt-2 list-decimal space-y-1.5 pl-5 marker:text-muted-foreground;
+  }
+  .answer-prose strong {
+    @apply font-semibold;
   }
 }

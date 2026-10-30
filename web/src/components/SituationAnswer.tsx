@@ -1,5 +1,6 @@
 "use client";
 
+import { Gavel, MessageCircleQuestion } from "lucide-react";
 import { useId } from "react";
 
 import { AnswerText } from "@/components/AnswerText";
@@ -62,23 +63,28 @@ export function SituationAnswer({
     <div className="space-y-4">
       <section
         aria-labelledby={conclusionId}
-        className="rounded-lg border border-l-4 border-l-primary bg-muted/60 p-4"
+        className="rounded-lg border border-primary/25 bg-accent/70 px-4 py-3"
       >
-        <h3 id={conclusionId} className="mb-1 text-sm font-semibold">
+        <h3
+          id={conclusionId}
+          className="mb-1 flex items-center gap-1.5 text-xs font-semibold tracking-wide text-accent-foreground uppercase"
+        >
+          <Gavel aria-hidden className="size-3.5" />
           Kết luận
         </h3>
         <AnswerText text={parts.conclusion} sourceCount={sourceCount} onCite={onCite} />
       </section>
       {parts.body && <AnswerText text={parts.body} sourceCount={sourceCount} onCite={onCite} />}
       {facts.length > 0 && (
-        <section aria-labelledby={factsId} className="rounded-lg border p-4">
-          <h3 id={factsId} className="mb-1 text-sm font-semibold">
+        <section aria-labelledby={factsId} className="rounded-lg border px-4 py-3">
+          <h3 id={factsId} className="flex items-center gap-1.5 text-sm font-semibold">
+            <MessageCircleQuestion aria-hidden className="size-4 text-muted-foreground" />
             Thông tin nên bổ sung
           </h3>
-          <p className="mb-2 text-sm text-muted-foreground">
+          <p className="mt-0.5 mb-2 text-sm text-muted-foreground">
             Kết luận có thể khác nếu bạn cho biết thêm:
           </p>
-          <ul className="list-disc space-y-1 pl-5">
+          <ul className="list-disc space-y-1 pl-5 text-sm marker:text-muted-foreground">
             {facts.map((fact) => (
               <li key={fact}>{fact}</li>
             ))}
