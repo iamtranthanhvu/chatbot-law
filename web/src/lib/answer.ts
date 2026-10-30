@@ -1,3 +1,4 @@
+import type { HistoryEntry } from "@/lib/history";
 import type { AskEvent, DonePayload, ErrorPayload, Intent, SourcePayload } from "@/lib/types";
 
 export interface AnswerState {
@@ -26,7 +27,8 @@ export type AnswerAction =
   | { type: "start"; question: string }
   | { type: "event"; event: AskEvent }
   | { type: "fail"; error: ErrorPayload }
-  | { type: "stop" };
+  | { type: "stop" }
+  | { type: "restore"; entry: HistoryEntry };
 
 export function answerReducer(state: AnswerState, action: AnswerAction): AnswerState {
   switch (action.type) {
@@ -38,6 +40,8 @@ export function answerReducer(state: AnswerState, action: AnswerAction): AnswerS
       return state.status === "streaming" ? { ...state, status: "done" } : state;
     case "event":
       return applyEvent(state, action.event);
+    case "restore":
+      return restore(action.entry);
   }
 }
 
@@ -55,4 +59,26 @@ function applyEvent(state: AnswerState, event: AskEvent): AnswerState {
     case "error":
       return { ...state, status: "error", error: event.data };
   }
+}
+
+function restore(entry: HistoryEntry): AnswerState {
+  return {
+    status: "done",
+    question: entry.question,
+    queryId: entry.id,
+    intent: entry.intent,
+    sources: entry.sources,
+    text: entry.answer,
+    done: {
+      answer: entry.answer,
+      citations: [],
+      invalid_citations: [],
+      missing_facts: entry.missingFacts,
+      latency_ms: {},
+      model: null,
+      disclaimer: entry.disclaimer,
+      cached: true,
+    },
+    error: null,
+  };
 }

@@ -136,7 +136,8 @@ describe("situation layout", () => {
     expect(splitSituation(SITUATION_ANSWER)).toEqual({
       conclusion: "Không được bán khi chưa có Giấy chứng nhận [1].",
       facts: ["Đất có đang tranh chấp không"],
-      body: "**Giải thích:** Luật yêu cầu phải có Giấy chứng nhận [1].\n**Căn cứ pháp lý:**\n- Điều 188, khoản 1 [1]",
+      // Blank lines keep each section its own paragraph in Markdown.
+      body: "**Giải thích:** Luật yêu cầu phải có Giấy chứng nhận [1].\n\n**Căn cứ pháp lý:**\n- Điều 188, khoản 1 [1]",
     });
     expect(splitSituation("Trả lời không theo khung [1].")).toBeNull();
   });

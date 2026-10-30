@@ -32,7 +32,7 @@ export function splitSituation(text: string): SituationParts | null {
     else if (match[1] === "Thông tin nên bổ sung") facts = bulletItems(raw);
     else body.push(`**${match[1]}:**${raw}`);
   });
-  return { conclusion, facts, body: body.join("\n") };
+  return { conclusion, facts, body: body.join("\n\n") };
 }
 
 function bulletItems(raw: string): string[] {

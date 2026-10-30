@@ -40,7 +40,7 @@ export function AnswerText({
                 type="button"
                 onClick={() => onCite(n)}
                 aria-label={`Xem nguồn ${n}`}
-                className="mx-0.5 rounded px-1 align-baseline text-sm font-medium text-blue-700 underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none dark:text-blue-300"
+                className="rounded px-0.5 align-baseline text-sm font-medium text-blue-700 underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-blue-600 focus-visible:outline-none dark:text-blue-300"
               >
                 [{n}]
               </button>

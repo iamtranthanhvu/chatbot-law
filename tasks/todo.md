@@ -497,7 +497,7 @@ Quy ước verify chung (Definition of Done cho mọi task): `make lint typechec
 
 **Estimated scope:** M
 
-### - [ ] T24: Lịch sử local, footer, a11y, E2E
+### - [x] T24: Lịch sử local, footer, a11y, E2E
 
 **Description:** Sidebar lịch sử `localStorage` (try/catch, xóa được); footer: văn bản đang áp dụng, miễn trừ, thông báo quyền riêng tư; responsive mobile; keyboard, contrast AA, `aria-live` vùng streaming; Playwright E2E với backend fake.
 

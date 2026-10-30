@@ -2,7 +2,7 @@ SHELL := /bin/bash
 COMPOSE_DEV := docker compose -f compose.dev.yml
 BACKEND := cd backend && uv run
 
-.PHONY: setup infra-up infra-down models dev-models dev-api dev-web migrate lint format typecheck test test-all test-models ingest reindex docs eval eval-compare
+.PHONY: setup infra-up infra-down models dev-models dev-api dev-web migrate lint format typecheck test test-e2e test-all test-models ingest reindex docs eval eval-compare
 
 MODEL_SERVER := cd model-server && uv run
 # Node version comes from .nvmrc (`nvm use`); pnpm runs through corepack, nothing global.
@@ -60,6 +60,9 @@ test:
 
 test-models:
 	$(MODEL_SERVER) pytest -q -m models
+
+test-e2e:
+	cd web && PLAYWRIGHT_BROWSERS_PATH=0 COREPACK_ENABLE_DOWNLOAD_PROMPT=0 NEXT_TELEMETRY_DISABLED=1 corepack pnpm test:e2e
 
 test-all:
 	$(BACKEND) pytest -q -m ''

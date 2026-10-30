@@ -95,7 +95,7 @@ T1 repo + infra dev
 ### Phase 7: Web
 - [x] T22: Next.js scaffold + trang hỏi đáp streaming
 - [x] T23: Panel nguyên văn, bố cục câu tình huống, feedback
-- [ ] T24: Lịch sử local, footer, a11y, E2E
+- [x] T24: Lịch sử local, footer, a11y, E2E
 
 **Checkpoint 6** — luồng đầy đủ trên trình duyệt (desktop + mobile) ở môi trường dev.
 
