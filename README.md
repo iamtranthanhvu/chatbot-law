@@ -11,40 +11,52 @@ web (Next.js, :3000) ──/api──▶ backend (FastAPI, :8000) ──▶ Post
                                        └──▶ Ollama (LLM, :11434)
 ```
 
-Hướng dẫn dưới đây dành cho máy dev **macOS Apple Silicon** (đã chạy thử trên M1 16 GB). Linux/Windows
-chưa được thử; không có GPU thì model-server chạy CPU, chậm hơn nhiều.
+Cả ba môi trường dùng **cùng một bộ lệnh `make`**: macOS (đã chạy thử trên M1 16 GB), Linux, và Windows
+qua WSL2 (xem mục 1b). Không có GPU thì model-server chạy CPU, chậm hơn nhiều.
 
 ## 1. Cài công cụ (một lần trên máy)
 
-| Công cụ | Dùng cho | Cài |
-|---|---|---|
-| Docker Desktop | Postgres, Qdrant, Redis và test integration | https://www.docker.com/products/docker-desktop |
-| uv | Python 3.12 + thư viện backend, model-server (uv tự tải Python) | `brew install uv` |
-| nvm | Node 24 cho web (bản cố định trong `.nvmrc`) | `brew install nvm` rồi làm theo hướng dẫn brew in ra |
-| Ollama | Chạy LLM trên máy | `brew install ollama` |
+| Công cụ | Dùng cho | macOS | Linux / WSL2 (Ubuntu) |
+|---|---|---|---|
+| Docker | Postgres, Qdrant, Redis và test integration | Docker Desktop: https://www.docker.com/products/docker-desktop | Docker Engine + plugin compose (WSL2: dùng Docker Desktop, xem 1b) |
+| make, curl | Chạy lệnh trong Makefile | có sẵn (Xcode CLT) | `sudo apt install -y make curl build-essential` |
+| uv | Python 3.12 + thư viện backend, model-server (uv tự tải Python) | `brew install uv` | `curl -LsSf https://astral.sh/uv/install.sh \| sh` |
+| nvm | Node 24 cho web (bản cố định trong `.nvmrc`) | `brew install nvm` rồi làm theo hướng dẫn brew in ra | script cài chính thức: https://github.com/nvm-sh/nvm#installing-and-updating |
+| Ollama | Chạy LLM trên máy | `brew install ollama` | `curl -fsSL https://ollama.com/install.sh \| sh` |
 
 pnpm không cần cài: Makefile gọi qua `corepack` đi kèm Node.
+
+### 1b. Windows: dùng WSL2
+
+Windows không chạy trực tiếp Makefile bash, nên dùng WSL2 để có môi trường Linux và gõ đúng các lệnh như mac/Linux:
+
+1. PowerShell (quyền admin): `wsl --install -d Ubuntu`, khởi động lại máy, tạo user Ubuntu. Cần bật ảo hóa (virtualization) trong BIOS.
+2. Cài Docker Desktop, vào Settings → Resources → WSL integration và bật cho Ubuntu.
+3. Mở terminal Ubuntu và cài công cụ theo cột "Linux / WSL2" ở bảng trên.
+4. **Clone repo bên trong WSL** (ví dụ `~/chatbot-law`), không để ở `/mnt/c/...` (I/O chậm và dễ lỗi quyền file).
+5. Từ đây làm đúng các mục 2–4 trong terminal Ubuntu. Mở web bằng trình duyệt Windows tại http://127.0.0.1:3000 (WSL2 tự chuyển tiếp cổng).
+6. Ollama: cài bản Linux trong WSL và chạy `ollama serve` (không có `brew services`). Có thể dùng Ollama bản Windows, vẫn giữ `LLM_BASE_URL` trỏ `127.0.0.1:11434`.
+7. GPU NVIDIA (nếu có): cài driver Windows mới nhất, WSL2 sẽ dùng được CUDA và `DEVICE=auto` tự nhận. Không có GPU thì chạy CPU, nên giảm `RERANK_CANDIDATES` khi dev.
 
 Cần khoảng **15 GB** đĩa trống và mạng ổn định — lần đầu tải khoảng 10 GB (model ~8,5 GB, thư viện,
 Docker image).
 
 ## 2. Setup (một lần sau khi clone)
 
-Mở Docker Desktop và Ollama trước (`brew services start ollama`, hoặc mở app Ollama), rồi chạy ở thư mục gốc repo:
+Mở Docker và Ollama trước (macOS: `brew services start ollama` hoặc mở app Ollama; Linux/WSL2: `ollama serve` ở một terminal riêng), rồi chạy ở thư mục gốc repo:
 
 ```bash
 nvm install && nvm use          # Node 24 theo .nvmrc
 make setup                      # tạo .env từ .env.example, cài thư viện Python + web (~5–10 phút)
 ```
 
-**Sửa `.env`** (file này không được commit):
+**Sửa `.env`** (file này không được commit). `.env.example` đã đặt sẵn `LLM_MODEL=qwen3:4b-instruct`, chỉ cần điền:
 
 ```bash
-LLM_MODEL=qwen3:4b-instruct     # .env.example ghi qwen3:8b — quá nặng cho máy 16 GB
 IP_HASH_SECRET=<chuỗi ngẫu nhiên>   # tạo bằng: openssl rand -hex 32
 ```
 
-> Dùng đúng tag `qwen3:4b-instruct`. Tag `qwen3:4b` là bản "thinking", trả lời chậm hơn nhiều.
+> Dùng đúng tag `qwen3:4b-instruct`. Tag `qwen3:4b` là bản "thinking", trả lời chậm hơn nhiều. Máy có nhiều VRAM/RAM có thể đổi sang `qwen3:8b`.
 
 Tải model và dựng dữ liệu:
 
@@ -70,7 +82,7 @@ Kết quả đúng: 212 Điều, 279 chunk. Nạp lại cùng file không tạo 
 
 ## 3. Chạy hằng ngày
 
-Docker Desktop và Ollama đang mở, rồi mỗi lệnh một terminal (terminal nào chạy web phải `nvm use` trước):
+Docker và Ollama đang chạy, rồi mỗi lệnh một terminal (terminal nào chạy web phải `nvm use` trước):
 
 ```bash
 make infra-up                   # nếu container chưa chạy
@@ -135,7 +147,8 @@ compose.dev.yml Postgres, Qdrant, Redis cho dev
 
 | Hiện tượng | Nguyên nhân / cách xử lý |
 |---|---|
-| `make infra-up` báo cổng 5432/6379 đã dùng | Postgres/Redis cài sẵn trên máy đang chạy — tắt chúng (`brew services stop postgresql`) |
+| `make infra-up` báo cổng 5432/6379 đã dùng | Postgres/Redis cài sẵn trên máy đang chạy — tắt chúng (macOS: `brew services stop postgresql`; Linux/WSL2: `sudo service postgresql stop`) |
+| Windows: `make` báo lỗi lạ như `*** missing separator` hoặc `\r` | Repo bị clone với CRLF (ngoài WSL). Clone lại trong WSL; `.gitattributes` ép LF |
 | `make dev-web` hoặc `make test` lỗi ở phần web | Node sai bản — chạy `nvm use` trong terminal đó |
 | Hỏi bị lỗi, log API báo không tìm thấy model | Chưa `ollama pull` đúng model ghi trong `LLM_MODEL` của `.env`, hoặc Ollama chưa chạy |
 | `make ingest` báo không kết nối được model-server | Chưa chạy `make dev-models` |
