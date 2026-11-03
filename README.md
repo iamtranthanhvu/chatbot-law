@@ -112,6 +112,38 @@ uv run lawqa ask "Đất chưa có sổ đỏ có bán được không?"        
 Tắt: `Ctrl+C` ở từng terminal, rồi `make infra-down` (dữ liệu vẫn giữ trong Docker volume).
 Xóa sạch dữ liệu để nạp lại từ đầu: `docker compose -f compose.dev.yml down -v`.
 
+## 3b. Chạy model trên server thuê (GPU), app chạy ở local
+
+`compose.models.yml` chỉ chạy phần nặng: **model-server** (BGE-M3 + reranker, :8001) và **Ollama** (LLM, :11434).
+Postgres/Qdrant/Redis, API và web vẫn chạy ở máy bạn.
+
+**Trên server** (Linux có GPU NVIDIA, đã cài driver, Docker và [nvidia-container-toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html)):
+
+```bash
+git clone <repo> chatbot-law && cd chatbot-law
+docker compose -f compose.models.yml up -d --build
+docker compose -f compose.models.yml logs -f      # lần đầu tải ~2,5 GB (LLM) + ~6 GB (BGE), chờ model-server healthy
+```
+
+Đổi LLM (ví dụ `OLLAMA_PULL="qwen3:8b"`) hoặc thêm model judge cho eval bằng biến môi trường trước lệnh `up`
+(nhớ đặt `LLM_MODEL` ở `.env` local cho khớp). Server không có GPU thì bỏ khối `deploy` trong file compose, chạy CPU rất chậm.
+
+**Ở máy local** — mở SSH tunnel, giữ nguyên `.env` mặc định (cổng trùng 8001/11434):
+
+```bash
+ssh -N -L 8001:127.0.0.1:8001 -L 11434:127.0.0.1:11434 user@IP_SERVER
+```
+
+Rồi chạy như bình thường nhưng **bỏ `make dev-models` và không chạy Ollama local**:
+`make infra-up && make migrate && make ingest FILE=... && make dev-api` và `make dev-web`.
+Kiểm tra: `curl http://127.0.0.1:8001/healthz` và `curl http://127.0.0.1:11434/api/tags`.
+
+> Mặc định cổng chỉ bind `127.0.0.1` trên server vì hai dịch vụ **không có xác thực**. Muốn gọi trực tiếp không qua tunnel:
+> `BIND_ADDR=0.0.0.0 docker compose -f compose.models.yml up -d`, rồi đặt `MODEL_SERVER_URL=http://IP:8001`,
+> `LLM_BASE_URL=http://IP:11434/v1` trong `.env` — và bắt buộc firewall chỉ cho IP của bạn.
+
+Dừng: `docker compose -f compose.models.yml down` (model vẫn giữ trong volume; thêm `-v` để xóa).
+
 ## 4. Test và kiểm tra code
 
 ```bash

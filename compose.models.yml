@@ -1,0 +1,79 @@
+# Model host (rented GPU server): runs ONLY the models.
+#   - model-server : BGE-M3 embedding + bge-reranker-v2-m3  (:8001)
+#   - ollama       : LLM                                    (:11434)
+# Postgres/Qdrant/Redis/API/web stay on your local machine (compose.dev.yml).
+#
+#   docker compose -f compose.models.yml up -d --build
+#   docker compose -f compose.models.yml logs -f
+#
+# Ports bind to 127.0.0.1 by default: neither service has authentication, so reach them
+# from your laptop through an SSH tunnel (see README "Chạy model trên server thuê").
+# Set BIND_ADDR=0.0.0.0 only if the provider firewall allows just your IP.
+name: lawqa-models
+
+x-gpu: &gpu
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+
+services:
+  model-server:
+    <<: *gpu
+    build: ./model-server
+    restart: unless-stopped
+    environment:
+      MS_DEVICE: ${MS_DEVICE:-auto}
+      MS_EMBED_MODEL: ${MS_EMBED_MODEL:-BAAI/bge-m3}
+      MS_RERANK_MODEL: ${MS_RERANK_MODEL:-BAAI/bge-reranker-v2-m3}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:8001:8001"
+    volumes:
+      - hf-cache:/models/hf
+    healthcheck:
+      # embedder loads at startup (first run downloads ~2.2 GB), hence the long start_period
+      test: ["CMD", "python", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8001/healthz', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+      start_period: 600s
+
+  ollama:
+    <<: *gpu
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+      OLLAMA_KEEP_ALIVE: 24h
+      OLLAMA_FLASH_ATTENTION: "1"
+      OLLAMA_NUM_PARALLEL: ${OLLAMA_NUM_PARALLEL:-4}
+    ports:
+      - "${BIND_ADDR:-127.0.0.1}:11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: pulls the LLM(s) into the ollama volume, then exits.
+  ollama-pull:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      # space-separated; add qwen3:8b here too if you run `make eval` (judge model)
+      OLLAMA_PULL: ${OLLAMA_PULL:-qwen3:4b-instruct}
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["for m in $$OLLAMA_PULL; do ollama pull $$m || exit 1; done"]
+
+volumes:
+  hf-cache:
+  ollama-data:
