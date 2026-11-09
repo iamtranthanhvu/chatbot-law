@@ -8,12 +8,15 @@ _WEIGHTS_AND_TOKENIZER = ["*.json", "*.safetensors", "pytorch_model.bin", "*.pt"
 
 def main() -> None:
     settings = Settings()
-    for name in (settings.embed_model, settings.rerank_model):
-        path = snapshot_download(
-            name,
-            allow_patterns=_WEIGHTS_AND_TOKENIZER,
-            ignore_patterns=["onnx/*", "imgs/*", "assets/*"],
-        )
+    for name in (settings.embed_model, settings.rerank_model, settings.transcribe_model):
+        if name == settings.transcribe_model:
+            path = snapshot_download(name, ignore_patterns=["onnx/*", "imgs/*", "assets/*"])
+        else:
+            path = snapshot_download(
+                name,
+                allow_patterns=_WEIGHTS_AND_TOKENIZER,
+                ignore_patterns=["onnx/*", "imgs/*", "assets/*"],
+            )
         print(f"{name} -> {path}")
 
 

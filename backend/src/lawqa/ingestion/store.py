@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import delete, func, insert, select, update
+from sqlalchemy import delete, func, insert, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from lawqa.db.models import ChunkRow, CorpusState, Document, Provision
@@ -19,7 +19,7 @@ class DocumentExistsError(Exception):
 
 
 class StoreResult(BaseModel):
-    status: Literal["created", "unchanged", "replaced"]
+    status: Literal["created", "unchanged", "replaced", "updated"]
     document_id: uuid.UUID
     corpus_version: int
     provisions: int
@@ -45,6 +45,7 @@ async def save_document(
     chunks: list[Chunk],
     *,
     replace: bool = False,
+    update_validity: bool = False,
 ) -> StoreResult:
     """Write a document, its provisions and chunks in one transaction."""
     meta = document.metadata
@@ -52,7 +53,9 @@ async def save_document(
     provision_rows = build_provision_rows(document, document_id)
     chunk_rows = build_chunk_rows(document, document_id, chunks)
 
-    def result(status: Literal["created", "unchanged", "replaced"], version: int) -> StoreResult:
+    def result(
+        status: Literal["created", "unchanged", "replaced", "updated"], version: int
+    ) -> StoreResult:
         return StoreResult(
             status=status,
             document_id=document_id,
@@ -66,13 +69,46 @@ async def save_document(
         version = await session.scalar(select(CorpusState.version).with_for_update())
         existing = (
             await session.execute(
-                select(Document.id, Document.sha256).where(Document.so_hieu == meta.so_hieu)
+                select(
+                    Document.id,
+                    Document.sha256,
+                    Document.effective_date,
+                    Document.expiry_date,
+                ).where(Document.so_hieu == meta.so_hieu)
             )
         ).first()
 
         status: Literal["created", "replaced"] = "created"
         if existing is not None:
             if existing.sha256 == document.sha256:
+                if update_validity and (
+                    existing.effective_date != meta.effective_date
+                    or existing.expiry_date != meta.expiry_date
+                ):
+                    await session.execute(
+                        update(Document)
+                        .where(Document.id == existing.id)
+                        .values(
+                            effective_date=meta.effective_date,
+                            expiry_date=meta.expiry_date,
+                        )
+                    )
+                    await session.execute(
+                        update(Provision)
+                        .where(Provision.document_id == existing.id)
+                        .values(valid_from=meta.effective_date, valid_to=meta.expiry_date)
+                    )
+                    await session.execute(
+                        update(ChunkRow)
+                        .where(ChunkRow.document_id == existing.id)
+                        .values(valid_from=meta.effective_date, valid_to=meta.expiry_date)
+                    )
+                    new_version = await session.scalar(
+                        update(CorpusState)
+                        .values(version=CorpusState.version + 1)
+                        .returning(CorpusState.version)
+                    )
+                    return result("updated", int(new_version or 0))
                 return result("unchanged", int(version or 0))
             if not replace:
                 raise DocumentExistsError(
@@ -106,7 +142,7 @@ def _document_values(document: ParsedDocument, document_id: uuid.UUID) -> dict[s
         "issuer": meta.issuer,
         "passed_date": meta.passed_date,
         "effective_date": meta.effective_date,
-        "expiry_date": None,
+        "expiry_date": meta.expiry_date,
         "aliases": _aliases(document),
         "preamble": document.preamble,
         "source_file": document.source_file,
@@ -125,6 +161,7 @@ def _aliases(document: ParsedDocument) -> list[str]:
 def build_provision_rows(document: ParsedDocument, document_id: uuid.UUID) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     effective = document.metadata.effective_date
+    expiry = document.metadata.expiry_date
 
     def add(article: Article, path: str, level: str, text: str, **extra: Any) -> None:
         rows.append(
@@ -144,7 +181,7 @@ def build_provision_rows(document: ParsedDocument, document_id: uuid.UUID) -> li
                 "section_number": article.section_number,
                 "section_title": article.section_title,
                 "valid_from": effective,
-                "valid_to": None,
+                "valid_to": expiry,
             }
         )
 
@@ -168,6 +205,7 @@ def build_chunk_rows(
     document: ParsedDocument, document_id: uuid.UUID, chunks: list[Chunk]
 ) -> list[dict[str, Any]]:
     effective = document.metadata.effective_date
+    expiry = document.metadata.expiry_date
     return [
         {
             "id": chunk_uuid(document_id, chunk.path),
@@ -186,7 +224,7 @@ def build_chunk_rows(
             "context_text": chunk.context_text,
             "token_count": chunk.token_count,
             "valid_from": effective,
-            "valid_to": None,
+            "valid_to": expiry,
         }
         for chunk in chunks
     ]
@@ -314,7 +352,10 @@ async def list_documents(
 
 
 async def find_article_chunks(
-    session_factory: async_sessionmaker[AsyncSession], dieu: str, so_hieu: str | None = None
+    session_factory: async_sessionmaker[AsyncSession],
+    dieu: str,
+    so_hieu: str | None = None,
+    reference_date: date | None = None,
 ) -> list[StoredChunk]:
     query = (
         select(ChunkRow, Document.so_hieu)
@@ -324,6 +365,11 @@ async def find_article_chunks(
     )
     if so_hieu is not None:
         query = query.where(Document.so_hieu == so_hieu)
+    elif reference_date is not None:
+        query = query.where(
+            or_(ChunkRow.valid_from.is_(None), ChunkRow.valid_from <= reference_date),
+            or_(ChunkRow.valid_to.is_(None), ChunkRow.valid_to > reference_date),
+        )
     async with session_factory() as session:
         rows = (await session.execute(query)).all()
     return [

@@ -21,6 +21,7 @@ class DocumentMetadata(BaseModel):
     issuer: str | None
     passed_date: date | None
     effective_date: date | None
+    expiry_date: date | None = None
 
 
 @dataclass(frozen=True)

@@ -37,6 +37,7 @@ class AppContainer:
     rate_limiter: RateLimiter | None = None
     answer_cache: AnswerCache | None = None
     slots: GenerationSlots | None = None
+    transcribe_audio: Callable[[bytes, str], Awaitable[str]] | None = None
 
 
 def get_container(request: Request) -> AppContainer:

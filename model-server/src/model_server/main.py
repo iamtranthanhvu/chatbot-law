@@ -1,15 +1,18 @@
 import asyncio
+import tempfile
 import threading
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from pydantic import BaseModel
 
 from model_server.backends import BGEM3Embedder, BGEReranker, Embedder, Reranker
 from model_server.config import Settings
 from model_server.devices import resolve_device
+from model_server.transcription import PhoWhisperTranscriber, Transcriber
 
 
 class EmbedRequest(BaseModel):
@@ -39,6 +42,13 @@ class HealthResponse(BaseModel):
     rerank_model: str
     embed_loaded: bool
     rerank_loaded: bool
+    transcribe_model: str
+    transcribe_loaded: bool
+
+
+class TranscribeResponse(BaseModel):
+    text: str
+    model: str
 
 
 class _LazyModel[T]:
@@ -65,11 +75,16 @@ def create_app(
     *,
     embedder_factory: Callable[[], Embedder] | None = None,
     reranker_factory: Callable[[], Reranker] | None = None,
+    transcriber_factory: Callable[[], Transcriber] | None = None,
 ) -> FastAPI:
     settings = settings or Settings()
     device = resolve_device(settings.device)
     embedder = _LazyModel(embedder_factory or (lambda: BGEM3Embedder(settings, device)))
     reranker = _LazyModel(reranker_factory or (lambda: BGEReranker(settings, device)))
+    transcriber = _LazyModel(
+        transcriber_factory
+        or (lambda: PhoWhisperTranscriber(settings.transcribe_model))
+    )
     # One lock for the whole device: MPS aborts the process ("A command encoder is already
     # encoding to this command buffer") when two models submit work from different threads.
     device_lock = asyncio.Lock()
@@ -114,6 +129,43 @@ def create_app(
             scores = await asyncio.to_thread(model.score, request.query, request.passages)
         return RerankResponse(scores=scores, model=settings.rerank_model)
 
+    @app.post("/transcribe")
+    async def transcribe(file: UploadFile = File(...)) -> TranscribeResponse:
+        media_type = (file.content_type or "").split(";", maxsplit=1)[0].lower()
+        if not media_type.startswith("audio/"):
+            raise HTTPException(415, "Tệp tải lên phải là audio")
+        audio = await file.read(settings.max_audio_bytes + 1)
+        if not audio:
+            raise HTTPException(422, "Tệp audio rỗng")
+        if len(audio) > settings.max_audio_bytes:
+            raise HTTPException(413, "Tệp audio vượt quá giới hạn 20 MB")
+
+        suffix = {
+            "audio/webm": ".webm",
+            "audio/ogg": ".ogg",
+            "audio/wav": ".wav",
+            "audio/x-wav": ".wav",
+            "audio/mp4": ".mp4",
+            "audio/mpeg": ".mp3",
+        }.get(media_type, ".audio")
+        temp_path: Path | None = None
+        text = ""
+        try:
+            with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as temp:
+                temp.write(audio)
+                temp_path = Path(temp.name)
+            model = await asyncio.to_thread(transcriber.get)
+            async with device_lock:
+                text = await asyncio.to_thread(model.transcribe, temp_path)
+        finally:
+            await file.close()
+            if temp_path is not None:
+                temp_path.unlink(missing_ok=True)
+
+        if not text:
+            raise HTTPException(422, "Không nhận dạng được lời nói trong audio")
+        return TranscribeResponse(text=text, model=settings.transcribe_model)
+
     @app.get("/healthz")
     async def healthz() -> HealthResponse:
         return HealthResponse(
@@ -123,6 +175,8 @@ def create_app(
             rerank_model=settings.rerank_model,
             embed_loaded=embedder.loaded,
             rerank_loaded=reranker.loaded,
+            transcribe_model=settings.transcribe_model,
+            transcribe_loaded=transcriber.loaded,
         )
 
     return app

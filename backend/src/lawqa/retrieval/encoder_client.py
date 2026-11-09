@@ -47,6 +47,24 @@ class EncoderClient:
             scores.extend(body["scores"])
         return scores
 
+    async def transcribe(self, audio: bytes, content_type: str) -> str:
+        try:
+            response = await self._client.post(
+                "/transcribe",
+                files={"file": ("question.audio", audio, content_type)},
+            )
+        except httpx.TransportError as error:
+            raise EncoderUnavailableError(
+                f"Không kết nối được model-server tại {self._base_url} ({error}). "
+                "Chạy `make dev-models` rồi thử lại."
+            ) from error
+        if response.status_code != 200:
+            raise EncoderError(
+                f"model-server trả lỗi {response.status_code} cho /transcribe: "
+                f"{response.text[:200]}"
+            )
+        return str(response.json()["text"])
+
     async def _post(self, path: str, payload: dict[str, object]) -> dict[str, Any]:
         try:
             response = await self._client.post(path, json=payload)

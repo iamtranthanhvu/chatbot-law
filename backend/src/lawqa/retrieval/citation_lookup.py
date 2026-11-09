@@ -16,11 +16,18 @@ class CitationLookup:
     def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
         self._session_factory = session_factory
 
-    async def find(self, refs: list[CitationRef]) -> list[RetrievedChunk]:
+    async def find(
+        self, refs: list[CitationRef], reference_date: date | None = None
+    ) -> list[RetrievedChunk]:
         found: list[RetrievedChunk] = []
         seen: set[str] = set()
         for ref in refs:
-            chunks = await find_article_chunks(self._session_factory, ref.dieu, ref.so_hieu)
+            chunks = await find_article_chunks(
+                self._session_factory,
+                ref.dieu,
+                ref.so_hieu,
+                reference_date=reference_date,
+            )
             for chunk in _narrow(chunks, ref):
                 if str(chunk.id) not in seen:
                     seen.add(str(chunk.id))
@@ -58,14 +65,16 @@ class ModeRetriever(Protocol):
 
 
 class Lookup(Protocol):
-    async def find(self, refs: list[CitationRef]) -> list[RetrievedChunk]: ...
+    async def find(
+        self, refs: list[CitationRef], reference_date: date | None = None
+    ) -> list[RetrievedChunk]: ...
 
 
 class CitationAwareRetriever:
     """Puts the articles a question names explicitly ("Điều 100", "khoản 1 Điều 126") first.
 
-    Looked-up chunks bypass the validity filter on purpose: asking for an article by number
-    must return it even if it is no longer in force.
+    A citation with an explicit document number can retrieve a historical text. An unqualified
+    article number resolves only against documents in force on the query's reference date.
     """
 
     def __init__(self, inner: ModeRetriever, lookup: Lookup, *, enabled: bool = True) -> None:
@@ -76,7 +85,11 @@ class CitationAwareRetriever:
     async def search(
         self, texts: list[str], reference_date: date, *, mode: str | None = None
     ) -> list[RetrievedChunk]:
-        named = await self._lookup.find(extract_citations(texts[0])) if self._enabled else []
+        named = (
+            await self._lookup.find(extract_citations(texts[0]), reference_date)
+            if self._enabled
+            else []
+        )
         results = await self._inner.search(texts, reference_date, mode=mode)
         seen = {chunk.chunk_id for chunk in named}
         return named + [chunk for chunk in results if chunk.chunk_id not in seen]

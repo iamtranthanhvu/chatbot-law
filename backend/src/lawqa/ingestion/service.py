@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -21,6 +22,10 @@ from lawqa.retrieval.encoder_client import DenseEncoder
 
 
 class IndexingError(RuntimeError):
+    pass
+
+
+class InvalidValidityRange(ValueError):
     pass
 
 
@@ -54,8 +59,29 @@ class IngestService:
         self._counter = counter
         self._max_tokens = max_tokens
 
-    async def ingest(self, path: Path, *, replace: bool = False) -> IngestReport:
+    async def ingest(
+        self,
+        path: Path,
+        *,
+        replace: bool = False,
+        effective_date: date | None = None,
+        expiry_date: date | None = None,
+    ) -> IngestReport:
         document = parse_file(path)
+        if effective_date is not None or expiry_date is not None:
+            metadata = document.metadata.model_copy(
+                update={
+                    "effective_date": effective_date or document.metadata.effective_date,
+                    "expiry_date": expiry_date,
+                }
+            )
+            document = document.model_copy(update={"metadata": metadata})
+        if (
+            document.metadata.effective_date is not None
+            and document.metadata.expiry_date is not None
+            and document.metadata.expiry_date <= document.metadata.effective_date
+        ):
+            raise InvalidValidityRange("Ngày hết hiệu lực phải sau ngày bắt đầu hiệu lực.")
         chunks = chunk_document(document, self._counter, self._max_tokens)
 
         state = await document_state(self.session_factory, document.metadata.so_hieu)
@@ -64,13 +90,37 @@ class IngestService:
             and state.sha256 == document.sha256
             and await self._indexer.count(state.document_id) == len(chunks)
         ):
-            result = await save_document(self.session_factory, document, chunks)
+            result = await save_document(
+                self.session_factory,
+                document,
+                chunks,
+                update_validity=effective_date is not None or expiry_date is not None,
+            )
+            if result.status == "updated":
+                try:
+                    await self._indexer.update_validity(
+                        result.document_id,
+                        document.metadata.effective_date,
+                        document.metadata.expiry_date,
+                    )
+                except Exception as error:
+                    raise IndexingError(
+                        f"Đã cập nhật ngày hiệu lực {document.metadata.so_hieu} trong Postgres "
+                        f"nhưng cập nhật Qdrant thất bại ({error}). Chạy `lawqa reindex` "
+                        "để đồng bộ lại."
+                    ) from error
             return IngestReport(
                 document=document, chunks=chunks, store=result, indexed=0, avgdl=None
             )
 
         vectors = await self._encoder.embed_dense([chunk.context_text for chunk in chunks])
-        result = await save_document(self.session_factory, document, chunks, replace=replace)
+        result = await save_document(
+            self.session_factory,
+            document,
+            chunks,
+            replace=replace,
+            update_validity=effective_date is not None or expiry_date is not None,
+        )
         vectors_by_path = dict(zip((chunk.path for chunk in chunks), vectors, strict=True))
         try:
             avgdl = await self._index_document(result.document_id, vectors_by_path)

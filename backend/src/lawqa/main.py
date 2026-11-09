@@ -10,7 +10,7 @@ from starlette.exceptions import HTTPException
 
 from lawqa.api.deps import AppContainer
 from lawqa.api.middleware import RequestContextMiddleware
-from lawqa.api.routers import ask, corpus, health
+from lawqa.api.routers import ask, corpus, health, speech
 from lawqa.core.config import get_settings
 from lawqa.core.errors import AppError
 from lawqa.core.logging import configure_logging
@@ -58,6 +58,7 @@ def create_app(container: AppContainer | None = None, cors_origins: Sequence[str
     app.include_router(health.router, prefix=API_PREFIX)
     app.include_router(corpus.router, prefix=API_PREFIX)
     app.include_router(ask.router, prefix=API_PREFIX)
+    app.include_router(speech.router, prefix=API_PREFIX)
     return app
 
 

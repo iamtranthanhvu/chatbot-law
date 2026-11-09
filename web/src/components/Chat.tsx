@@ -156,7 +156,7 @@ export function Chat() {
                 </h1>
                 <p className="text-sm text-muted-foreground">
                   Mô tả tình huống của bạn hoặc tra cứu một Điều luật. Mỗi câu trả lời đều kèm căn
-                  cứ trong Luật Đất đai 2013.
+                cứ trong kho văn bản pháp luật đất đai đã nạp.
                 </p>
               </div>
               {composer}
@@ -195,7 +195,7 @@ export function Chat() {
               <div className="mx-auto w-full max-w-3xl space-y-2">
                 {composer}
                 <p className="text-center text-[11px] text-muted-foreground">
-                  Mỗi câu hỏi được trả lời độc lập theo Luật Đất đai 2013 · Chỉ mang tính tham khảo
+                  Mỗi câu hỏi được trả lời độc lập theo kho dữ liệu · Chỉ mang tính tham khảo
                 </p>
               </div>
             </div>

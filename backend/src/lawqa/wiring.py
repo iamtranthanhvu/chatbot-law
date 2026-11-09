@@ -178,6 +178,7 @@ async def build_container(settings: Settings) -> AsyncIterator[AppContainer]:
             slots=GenerationSlots(
                 settings.max_concurrent_generations, settings.generation_wait_seconds
             ),
+            transcribe_audio=encoder.transcribe,
             checks={
                 "database": database_check(session_factory),
                 "qdrant": qdrant_check(qdrant, settings.qdrant_collection),

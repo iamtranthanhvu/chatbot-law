@@ -24,7 +24,7 @@ from lawqa.ingestion.integrity import IntegrityError
 from lawqa.ingestion.legal_parser import parse_file
 from lawqa.ingestion.metadata import MetadataError
 from lawqa.ingestion.report import format_report
-from lawqa.ingestion.service import IndexingError, IngestService
+from lawqa.ingestion.service import IndexingError, IngestService, InvalidValidityRange
 from lawqa.ingestion.store import DocumentExistsError, list_documents
 from lawqa.ingestion.tokens import HFTokenCounter
 from lawqa.pipelines.base import DoneEvent, ErrorEvent, Query, SourcesEvent, TokenEvent
@@ -48,6 +48,7 @@ _OPERATOR_ERRORS = (
     IntegrityError,
     MetadataError,
     DocumentExistsError,
+    InvalidValidityRange,
     EncoderError,
     IndexingError,
 )
@@ -127,6 +128,14 @@ def ingest(
     replace: Annotated[
         bool, typer.Option("--replace", help="Thay văn bản cùng số hiệu đã có")
     ] = False,
+    effective_date: Annotated[
+        date | None,
+        typer.Option("--effective-date", help="Ngày hiệu lực YYYY-MM-DD; ghi đè ngày trong tệp"),
+    ] = None,
+    expiry_date: Annotated[
+        date | None,
+        typer.Option("--expiry-date", help="Ngày hết hiệu lực YYYY-MM-DD (cận trên, không gồm)"),
+    ] = None,
 ) -> None:
     """Phân tích và nạp một văn bản pháp luật vào Postgres + Qdrant."""
     if dry_run:
@@ -135,6 +144,14 @@ def ingest(
         except (IntegrityError, MetadataError) as error:
             typer.echo(str(error), err=True)
             raise typer.Exit(code=1) from error
+        if effective_date is not None or expiry_date is not None:
+            metadata = document.metadata.model_copy(
+                update={
+                    "effective_date": effective_date or document.metadata.effective_date,
+                    "expiry_date": expiry_date,
+                }
+            )
+            document = document.model_copy(update={"metadata": metadata})
         settings = IngestionSettings()
         chunks = chunk_document(
             document, HFTokenCounter(settings.tokenizer_name), settings.chunk_max_tokens
@@ -144,7 +161,12 @@ def ingest(
 
     async def run() -> None:
         async with _service() as service:
-            report = await service.ingest(path, replace=replace)
+            report = await service.ingest(
+                path,
+                replace=replace,
+                effective_date=effective_date,
+                expiry_date=expiry_date,
+            )
         typer.echo(format_report(report.document, report.chunks))
         store = report.store
         avgdl = f" · BM25 avgdl {report.avgdl:.1f}" if report.avgdl else ""

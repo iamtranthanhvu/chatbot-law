@@ -79,6 +79,34 @@ class QdrantIndexer:
             batch = updates[start : start + self._batch_size]
             await self._client.update_vectors(self._collection, points=batch, wait=True)
 
+    async def update_validity(
+        self,
+        document_id: uuid.UUID,
+        valid_from: date | None,
+        valid_to: date | None,
+    ) -> None:
+        """Update effective-date payload fields without recomputing dense or BM25 vectors."""
+        if not await self._client.collection_exists(self._collection):
+            raise RuntimeError("Qdrant collection is missing")
+        selector = models.FilterSelector(filter=_document_filter(document_id))
+        payload = {
+            key: _datetime(value)
+            for key, value in (("valid_from", valid_from), ("valid_to", valid_to))
+            if value is not None
+        }
+        if payload:
+            await self._client.set_payload(
+                self._collection, payload=payload, points_selector=selector, wait=True
+            )
+        empty_keys = [
+            key for key, value in (("valid_from", valid_from), ("valid_to", valid_to))
+            if value is None
+        ]
+        if empty_keys:
+            await self._client.delete_payload(
+                self._collection, keys=empty_keys, points_selector=selector, wait=True
+            )
+
     async def delete_document(self, document_id: uuid.UUID) -> None:
         if not await self._client.collection_exists(self._collection):
             return

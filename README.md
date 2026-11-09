@@ -1,7 +1,9 @@
 # Hỏi đáp Luật Đất đai
 
 Hệ thống hỏi đáp pháp luật đất đai tiếng Việt: người dùng đặt câu hỏi, hệ thống tìm Điều/Khoản liên quan
-và trả lời có trích dẫn. Hiện chỉ nạp **Luật Đất đai 2013 (45/2013/QH13)**. Nhánh này dùng Hybrid RAG
+và trả lời có trích dẫn. Corpus mẫu gồm **Luật Đất đai 2024 (31/2024/QH15), Luật 43/2024/QH15,
+Nghị quyết 254/2025/QH15** và Luật 45/2013/QH13 để tra cứu lịch sử. Đây chưa phải kho pháp luật đầy đủ:
+nghị định, thông tư và văn bản địa phương chưa được nạp. Nhánh này dùng Hybrid RAG
 (BM25 + vector + rerank). Thiết kế chi tiết: [`SPEC.md`](SPEC.md); tiến độ: [`tasks/todo.md`](tasks/todo.md).
 
 ```
@@ -38,8 +40,8 @@ Windows không chạy trực tiếp Makefile bash, nên dùng WSL2 để có mô
 6. Ollama: cài bản Linux trong WSL và chạy `ollama serve` (không có `brew services`). Có thể dùng Ollama bản Windows, vẫn giữ `LLM_BASE_URL` trỏ `127.0.0.1:11434`.
 7. GPU NVIDIA (nếu có): cài driver Windows mới nhất, WSL2 sẽ dùng được CUDA và `DEVICE=auto` tự nhận. Không có GPU thì chạy CPU, nên giảm `RERANK_CANDIDATES` khi dev.
 
-Cần khoảng **15 GB** đĩa trống và mạng ổn định — lần đầu tải khoảng 10 GB (model ~8,5 GB, thư viện,
-Docker image).
+Cần khoảng **15 GB** đĩa trống và mạng ổn định — lần đầu tải khoảng 10 GB (model embedding, reranker,
+Whisper tiếng Việt, thư viện và Docker image).
 
 ## 2. Setup (một lần sau khi clone)
 
@@ -62,23 +64,38 @@ Tải model và dựng dữ liệu:
 
 ```bash
 ollama pull qwen3:4b-instruct   # LLM, 2,5 GB
-make models                     # BGE-M3 + bge-reranker-v2-m3 từ Hugging Face, ~6 GB (~10–15 phút)
+make models                     # BGE-M3 + reranker + PhoWhisper-small từ Hugging Face
 make infra-up                   # chạy Postgres, Qdrant, Redis bằng Docker
 make migrate                    # tạo bảng trong Postgres
 ```
 
-Nạp Luật 2013 — bước này cần model-server đang chạy để tạo embedding, nên mở **terminal riêng**:
+Nạp corpus mẫu — model-server phải chạy để tạo embedding. Mốc dưới đây đặt Luật 2013 hết hiệu lực
+ngay trước ngày Luật 2024 có hiệu lực; Luật 43/2024 đã sửa ngày hiệu lực ghi trong bản gốc Luật 31.
+Mở **terminal riêng**:
 
 ```bash
 make dev-models                 # terminal 1, để chạy luôn
 ```
 
 ```bash
-make ingest FILE=raw_data/Luật-45-2013-QH13.docx    # terminal 2, ~1 phút
-make docs                       # kiểm tra: phải thấy 45/2013/QH13
+make ingest FILE=raw_data/Luật-45-2013-QH13.docx ARGS="--expiry-date 2024-08-01"
+make ingest FILE=raw_data/Luật-31-2024-QH15.docx ARGS="--effective-date 2024-08-01"
+make ingest FILE=raw_data/Luật-43-2024-QH15.docx ARGS="--effective-date 2024-08-01"
+make ingest FILE=raw_data/Nghị-quyết-254-2025-QH15.docx ARGS="--effective-date 2026-01-01"
+make docs                       # kiểm tra có đủ bốn văn bản
 ```
 
-Kết quả đúng: 212 Điều, 279 chunk. Nạp lại cùng file không tạo bản trùng.
+Trước lần nạp đầu, nên xác nhận parser đọc được cả file bằng `--dry-run` (bỏ `--dry-run` để nạp):
+
+```bash
+make ingest FILE=raw_data/Luật-45-2013-QH13.docx ARGS="--dry-run --expiry-date 2024-08-01"
+make ingest FILE=raw_data/Luật-31-2024-QH15.docx ARGS="--dry-run --effective-date 2024-08-01"
+make ingest FILE=raw_data/Luật-43-2024-QH15.docx ARGS="--dry-run --effective-date 2024-08-01"
+make ingest FILE=raw_data/Nghị-quyết-254-2025-QH15.docx ARGS="--dry-run --effective-date 2026-01-01"
+```
+
+Ngày hết hiệu lực là cận trên không bao gồm: Luật 2013 được giữ để tra cứu lịch sử nhưng không
+được tìm như luật đang hiệu lực từ 01/08/2024. Nạp lại cùng file không tạo bản trùng.
 
 ## 3. Chạy hằng ngày
 
@@ -92,6 +109,12 @@ nvm use && make dev-web         # terminal 3 — web :3000
 ```
 
 Mở http://127.0.0.1:3000.
+
+Nút microphone hoặc nút tải file trong ô hỏi dùng PhoWhisper chạy ở `model-server` để chuyển giọng nói
+tiếng Việt thành văn bản. File audio tối đa 20 MB; âm thanh được xử lý cục bộ và xóa sau khi nhận dạng.
+Bản chữ hiện trong ô nhập để người dùng sửa trước khi gửi câu hỏi. Nút loa dưới câu trả lời dùng giọng đọc tiếng Việt của trình duyệt/hệ điều hành;
+nội dung không gửi sang dịch vụ đọc giọng nói bên ngoài. Giọng đọc có sẵn tùy trình duyệt và hệ điều
+hành. Lần đầu chạy `make models` tải thêm PhoWhisper-small.
 
 Kiểm tra nhanh mọi thành phần đã sẵn sàng:
 
@@ -130,6 +153,7 @@ Test với model và LLM thật (chậm, cần model-server/Ollama): `make test-
 `cd backend && uv run pytest -m llm`.
 
 Đánh giá chất lượng (eval): `make eval MODE=retrieval`, kết quả ghi vào `eval/results/`.
+Hướng dẫn chuẩn bị thí nghiệm fine-tune và so sánh checkpoint: [`docs/fine-tuning.md`](docs/fine-tuning.md).
 
 ## 5. Cấu trúc thư mục
 
@@ -152,10 +176,12 @@ compose.dev.yml Postgres, Qdrant, Redis cho dev
 | `make dev-web` hoặc `make test` lỗi ở phần web | Node sai bản — chạy `nvm use` trong terminal đó |
 | Hỏi bị lỗi, log API báo không tìm thấy model | Chưa `ollama pull` đúng model ghi trong `LLM_MODEL` của `.env`, hoặc Ollama chưa chạy |
 | `make ingest` báo không kết nối được model-server | Chưa chạy `make dev-models` |
+| Nhập giọng nói báo lỗi nạp model PhoWhisper | Kiểm tra `MS_TRANSCRIBE_MODEL=vinai/PhoWhisper-small` trong `.env`, chạy `make models`, rồi khởi động lại `make dev-models` |
 | Mọi câu đều nhận "Không tìm thấy căn cứ trong dữ liệu hiện có…" | Chưa nạp dữ liệu — xem `make docs` |
 | `/readyz` trả 503 | Xem thành phần bị lỗi trong JSON trả về và bật lại nó |
 
 ## Lưu ý
 
 - Không commit `.env`.
-- Câu trả lời chỉ mang tính tham khảo; hệ thống chưa gồm Luật Đất đai 2024.
+- Câu trả lời chỉ mang tính tham khảo; corpus hiện chưa có đầy đủ nghị định, thông tư, văn bản địa phương
+  và các hướng dẫn pháp luật đất đai ban hành sau các văn bản mẫu trong `raw_data/`.

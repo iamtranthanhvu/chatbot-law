@@ -21,9 +21,9 @@ export function AboutData() {
   return (
     <div className="space-y-2 text-[11px] leading-relaxed text-muted-foreground">
       <p>
-        <span className="font-medium text-foreground">Văn bản áp dụng:</span> Luật Đất đai số
-        45/2013/QH13 (hiệu lực từ 01/07/2014). Chưa gồm Luật Đất đai 2024 và các văn bản sửa đổi,
-        hướng dẫn.
+        <span className="font-medium text-foreground">Kho dữ liệu:</span> Luật Đất đai số
+        31/2024/QH15, Luật sửa đổi số 43/2024/QH15, Nghị quyết 254/2025/QH15 và Luật 45/2013/QH13
+        để tra cứu lịch sử. Chưa đầy đủ nghị định, thông tư và văn bản địa phương.
       </p>
       <p>
         <span className="font-medium text-foreground">Miễn trừ:</span> Thông tin chỉ mang tính

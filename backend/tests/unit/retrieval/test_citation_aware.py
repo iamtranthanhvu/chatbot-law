@@ -10,7 +10,9 @@ class FakeLookup:
     def __init__(self) -> None:
         self.refs: list[CitationRef] = []
 
-    async def find(self, refs: list[CitationRef]) -> list[RetrievedChunk]:
+    async def find(
+        self, refs: list[CitationRef], reference_date: date | None = None
+    ) -> list[RetrievedChunk]:
         self.refs = refs
         return [
             make_chunk(ref.dieu, f"Điều {ref.dieu}", score=1.0).model_copy(

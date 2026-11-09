@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Hỏi đáp Luật Đất đai",
   description:
-    "Hỏi đáp về pháp luật đất đai Việt Nam, trả lời kèm trích dẫn Điều, khoản của Luật Đất đai 2013.",
+    "Hỏi đáp về pháp luật đất đai Việt Nam, trả lời kèm trích dẫn điều khoản từ kho văn bản đã nạp.",
 };
 
 export const viewport: Viewport = {

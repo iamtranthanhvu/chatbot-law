@@ -75,6 +75,16 @@ export async function getChunk(id: string, signal?: AbortSignal): Promise<ChunkD
   return (await response.json()) as ChunkDetail;
 }
 
+export async function transcribeAudio(audio: Blob): Promise<string> {
+  const response = await request("/transcribe", {
+    method: "POST",
+    headers: { "content-type": audio.type || "audio/webm" },
+    body: audio,
+  });
+  const result = (await response.json()) as { text: string };
+  return result.text;
+}
+
 export async function sendFeedback(queryId: string, rating: Rating, note?: string): Promise<void> {
   await request(`/queries/${encodeURIComponent(queryId)}/feedback`, {
     method: "POST",

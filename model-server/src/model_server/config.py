@@ -9,6 +9,7 @@ class Settings(BaseSettings):
 
     embed_model: str = "BAAI/bge-m3"
     rerank_model: str = "BAAI/bge-reranker-v2-m3"
+    transcribe_model: str = "vinai/PhoWhisper-small"
     device: str = "auto"
     use_fp16: bool | None = None  # None: fp16 on GPU (cuda/mps), fp32 on cpu
 
@@ -16,3 +17,4 @@ class Settings(BaseSettings):
     max_text_chars: int = Field(default=8000, gt=0)
     embed_max_length: int = Field(default=1024, gt=0)
     rerank_max_length: int = Field(default=1024, gt=0)
+    max_audio_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
